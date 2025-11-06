@@ -1,0 +1,15 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Copy mock agent script
+COPY examples/mock_agent.py .
+
+# Make script executable
+RUN chmod +x mock_agent.py
+
+# Expose port
+EXPOSE 8080
+
+# Run mock agent
+CMD ["python", "mock_agent.py"]

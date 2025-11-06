@@ -1,0 +1,29 @@
+{
+  "workflow_id": "wf-research-and-write-001",
+  "name": "research-and-write",
+  "version": "1.0.0",
+  "start_step": "step-1",
+  "steps": {
+    "step-1": {
+      "id": "step-1",
+      "agent_name": "ResearchAgent",
+      "next_step": "step-2",
+      "input_mapping": {
+        "topic": "${workflow.input.topic}",
+        "depth": "${workflow.input.research_depth}",
+        "sources": "${workflow.input.preferred_sources}"
+      }
+    },
+    "step-2": {
+      "id": "step-2",
+      "agent_name": "WriterAgent",
+      "next_step": null,
+      "input_mapping": {
+        "research_data": "${step-1.output.findings}",
+        "summary": "${step-1.output.summary}",
+        "style": "${workflow.input.writing_style}",
+        "word_count": "${workflow.input.target_word_count}"
+      }
+    }
+  }
+}

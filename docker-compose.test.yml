@@ -1,0 +1,60 @@
+version: '3.8'
+
+# Test-specific Docker Compose configuration
+# Extends the base docker-compose.yml with mock agents for testing
+
+services:
+  # Mock Research Agent
+  research-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile.mock-agent
+    container_name: research-agent
+    ports:
+      - "8081:8080"
+    environment:
+      - AGENT_NAME=ResearchAgent
+      - AGENT_PORT=8080
+      - AGENT_DELAY_MS=100
+      - AGENT_ERROR_MODE=none
+      - AGENT_ERROR_RATE=0.0
+    networks:
+      - orchestrator-network
+
+  # Mock Writer Agent
+  writer-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile.mock-agent
+    container_name: writer-agent
+    ports:
+      - "8082:8080"
+    environment:
+      - AGENT_NAME=WriterAgent
+      - AGENT_PORT=8080
+      - AGENT_DELAY_MS=200
+      - AGENT_ERROR_MODE=none
+      - AGENT_ERROR_RATE=0.0
+    networks:
+      - orchestrator-network
+
+  # Mock Agent Registry
+  agent-registry:
+    image: python:3.11-slim
+    container_name: agent-registry
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./examples/mock_agent_registry.py:/app/mock_agent_registry.py:ro
+    working_dir: /app
+    command: python mock_agent_registry.py
+    environment:
+      - PORT=8080
+    networks:
+      - orchestrator-network
+
+networks:
+  orchestrator-network:
+    name: orchestrator_orchestrator-network
+    external: true
+
