@@ -1,0 +1,27 @@
+# Using Alpine to avoid Debian repository issues
+FROM python:3.11-alpine
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apk add --no-cache \
+    postgresql-client \
+    gcc \
+    musl-dev \
+    postgresql-dev \
+    linux-headers
+
+# Copy requirements
+COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Copy source code
+COPY src/ ./src/
+COPY api/ ./api/
+
+# Set Python path
+ENV PYTHONPATH=/app
+
+# Run the execution consumer
+CMD ["python", "-m", "src.executor", "consumer"]

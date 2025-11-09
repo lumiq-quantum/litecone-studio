@@ -11,3 +11,4 @@ asyncio==3.4.3
 
 # Utilities
 python-dotenv==1.0.0
+pyyaml==6.0.1

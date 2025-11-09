@@ -98,10 +98,12 @@ After quick-start, you'll have:
 |---------|------|-------------|
 | Kafka | 9092 | Message broker |
 | PostgreSQL | 5432 | Workflow state database |
-| ResearchAgent | 8081 | Mock agent #1 |
-| WriterAgent | 8082 | Mock agent #2 |
+| ResearchAgent | 8081 | Mock JSON-RPC 2.0 agent #1 |
+| WriterAgent | 8082 | Mock JSON-RPC 2.0 agent #2 |
 | Agent Registry | 8080 | Agent metadata service |
 | Bridge | - | HTTP-Kafka adapter (no exposed port) |
+
+**Note:** Agents communicate using the JSON-RPC 2.0 protocol. See [A2A_AGENT_INTERFACE.md](A2A_AGENT_INTERFACE.md) for protocol details.
 
 ## Test Different Scenarios
 
@@ -191,7 +193,7 @@ docker exec postgres psql -U workflow_user -d workflow_db -c \
 - 📖 Read [MANUAL_TESTING_GUIDE.md](MANUAL_TESTING_GUIDE.md) for detailed testing scenarios
 - 📖 See [README.md](README.md) for architecture overview
 - 📖 Check [WORKFLOW_FORMAT.md](WORKFLOW_FORMAT.md) for workflow syntax
-- 📖 Review [A2A_AGENT_INTERFACE.md](A2A_AGENT_INTERFACE.md) for agent implementation
+- 📖 Review [A2A_AGENT_INTERFACE.md](A2A_AGENT_INTERFACE.md) for JSON-RPC 2.0 agent implementation
 
 ## Common Commands
 

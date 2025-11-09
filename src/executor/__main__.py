@@ -1,7 +1,19 @@
-"""Entry point for the executor package when run as a module."""
+"""
+Module entry point for executor package.
 
-from src.executor.centralized_executor import main
+This allows running the execution consumer as:
+    python -m src.executor
+"""
+
+import sys
 import asyncio
 
-if __name__ == '__main__':
+# Check if we should run the consumer or the standalone executor
+if len(sys.argv) > 1 and sys.argv[1] == "consumer":
+    # Run the execution consumer service
+    from src.executor.execution_consumer import main
+    asyncio.run(main())
+else:
+    # Run the standalone centralized executor
+    from src.executor.centralized_executor import main
     asyncio.run(main())

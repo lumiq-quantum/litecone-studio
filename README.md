@@ -5,7 +5,7 @@ Multi-agent orchestration platform components for executing workflows through as
 ## Components
 
 - **Centralized Executor**: Ephemeral orchestrator that manages workflow execution
-- **External Agent Executor (HTTP-Kafka Bridge)**: Adapter service translating Kafka events to HTTP calls
+- **External Agent Executor (HTTP-Kafka Bridge)**: Adapter service translating Kafka events to JSON-RPC 2.0 HTTP calls
 
 ## Project Structure
 
@@ -126,13 +126,24 @@ PYTHONPATH=. python3 examples/logging_example.py
 
 ### Core Documentation
 - **[Workflow JSON Format](WORKFLOW_FORMAT.md)** - Complete specification for defining workflows
-- **[A2A Agent Interface](A2A_AGENT_INTERFACE.md)** - HTTP protocol specification for implementing agents
+- **[A2A Agent Interface](A2A_AGENT_INTERFACE.md)** - JSON-RPC 2.0 protocol specification for implementing agents
 - **[Logging Guide](src/utils/logging_README.md)** - Structured logging and observability
 
+### API Documentation
+- **[API Documentation](API_DOCUMENTATION.md)** - Comprehensive REST API documentation
+- **[OpenAPI Specification](openapi.yaml)** - Swagger/OpenAPI 3.0 spec
+- **[Swagger Guide](SWAGGER_GUIDE.md)** - How to use Swagger UI with the API
+
+### Migration and Deployment
+- **[Migration Guide](MIGRATION_GUIDE.md)** - Migrate from CLI to API-based workflow execution
+- **[Migration Quick Reference](MIGRATION_QUICK_REFERENCE.md)** - Quick commands for migration
+- **[Migration Scripts](scripts/README.md)** - Automated migration tools
+
 ### Examples and Testing
+- **[Quick Start Guide](QUICKSTART.md)** - Get started in 2 minutes
+- **[Manual Testing Guide](MANUAL_TESTING_GUIDE.md)** - Step-by-step testing scenarios
+- **[Testing Architecture](TESTING_ARCHITECTURE.md)** - How mock agents work
 - **[Examples README](examples/README.md)** - Testing tools and example workflows
-- **[Testing Guide](examples/TESTING.md)** - Comprehensive testing documentation
-- **[Workflow Examples](examples/workflow_README.md)** - Sample workflow definitions
 
 ## Development
 

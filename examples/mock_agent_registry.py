@@ -44,6 +44,18 @@ AGENTS = {
             "max_delay_ms": 5000,
             "backoff_multiplier": 2.0
         }
+    },
+    "TheDiceRoller": {
+        "name": "TheDiceRoller",
+        "url": "https://8d0d1c58f070.ngrok-free.app/",
+        "auth_config": None,
+        "timeout": 30000,
+        "retry_config": {
+            "max_retries": 3,
+            "initial_delay_ms": 1000,
+            "max_delay_ms": 30000,
+            "backoff_multiplier": 2.0
+        }
     }
 }
 

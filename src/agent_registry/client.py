@@ -175,7 +175,8 @@ class AgentRegistryClient:
     
     async def _fetch_agent(self, agent_name: str) -> AgentMetadata:
         """
-        Fetch agent metadata from the registry (single attempt).
+        Fetch agent metadata from the API database (single attempt).
+        Updated to query API database first.
         
         Args:
             agent_name: Name of the agent to fetch
@@ -187,15 +188,49 @@ class AgentRegistryClient:
             httpx.HTTPError: If the HTTP request fails
             ValueError: If the agent is not found or response is invalid
         """
+        # Try API database first (workflow-management-api)
+        api_url = f"http://workflow-management-api:8000/api/v1/agents?name={agent_name}"
+        
+        logger.debug(f"Fetching agent metadata from API database: {api_url}")
+        
+        try:
+            response = await self.http_client.get(api_url)
+            
+            if response.status_code == 200:
+                api_data = response.json()
+                if api_data.get('items') and len(api_data['items']) > 0:
+                    agent_data = api_data['items'][0]
+                    
+                    # Convert API format to AgentMetadata format
+                    metadata_dict = {
+                        "name": agent_data["name"],
+                        "url": agent_data["url"],
+                        "auth_config": agent_data.get("auth_config"),
+                        "timeout": agent_data.get("timeout_ms", 30000),
+                        "retry_config": agent_data.get("retry_config", {
+                            "max_retries": 3,
+                            "initial_delay_ms": 1000,
+                            "max_delay_ms": 30000,
+                            "backoff_multiplier": 2.0
+                        })
+                    }
+                    
+                    metadata = AgentMetadata(**metadata_dict)
+                    logger.info(f"Successfully fetched metadata for agent '{agent_name}' from API database")
+                    return metadata
+        except Exception as e:
+            logger.warning(f"Failed to fetch from API database: {e}, falling back to registry")
+        
+        # Fallback to mock registry for backward compatibility
         url = f"{self.registry_url}/agents/{agent_name}"
         
-        logger.debug(f"Fetching agent metadata from {url}")
+        logger.debug(f"Fetching agent metadata from registry: {url}")
         
         response = await self.http_client.get(url)
         
         # Handle 404 specifically
         if response.status_code == 404:
-            raise ValueError(f"Agent '{agent_name}' not found in registry")
+            raise ValueError(f"Agent '{agent_name}' not found in API database or registry")
         
         # Raise for other error status codes
         response.raise_for_status()
@@ -206,7 +241,7 @@ class AgentRegistryClient:
         # Validate and create AgentMetadata
         try:
             metadata = AgentMetadata(**data)
-            logger.info(f"Successfully fetched metadata for agent '{agent_name}'")
+            logger.info(f"Successfully fetched metadata for agent '{agent_name}' from registry")
             return metadata
         except Exception as e:
             raise ValueError(f"Invalid agent metadata response for '{agent_name}': {e}")

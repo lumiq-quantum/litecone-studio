@@ -1,0 +1,48 @@
+# Dockerfile for FastAPI Workflow Management API
+# Using Alpine to avoid Debian repository issues
+FROM python:3.11-alpine
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies
+RUN apk add --no-cache \
+    postgresql-client \
+    curl \
+    gcc \
+    musl-dev \
+    postgresql-dev \
+    linux-headers
+
+# Create non-root user for security
+RUN adduser -D -u 1000 apiuser && \
+    chown -R apiuser:apiuser /app
+
+# Copy requirements first for better caching
+COPY api/requirements.txt /app/api/requirements.txt
+
+# Install Python dependencies
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r api/requirements.txt
+
+# Copy application code
+COPY --chown=apiuser:apiuser api/ /app/api/
+COPY --chown=apiuser:apiuser src/ /app/src/
+COPY --chown=apiuser:apiuser alembic.ini /app/
+
+# Set Python path
+ENV PYTHONPATH=/app
+
+# Switch to non-root user
+USER apiuser
+
+# Expose API port
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD python -c "import httpx; httpx.get('http://localhost:8000/health')" || exit 1
+
+# Run database migrations and start the API
+# Note: In production, consider running migrations separately
+CMD ["sh", "-c", "alembic upgrade head && uvicorn api.main:app --host 0.0.0.0 --port 8000"]

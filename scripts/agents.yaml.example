@@ -1,0 +1,49 @@
+# Example Agent Configuration
+# Copy this file to agents.yaml and customize for your environment
+
+agents:
+  - name: ResearchAgent
+    url: http://research-agent:8081
+    description: Agent for conducting research on various topics
+    auth_type: none
+    timeout_ms: 30000
+    retry_config:
+      max_retries: 3
+      initial_delay_ms: 1000
+      max_delay_ms: 30000
+      backoff_multiplier: 2.0
+  
+  - name: WriterAgent
+    url: http://writer-agent:8082
+    description: Agent for writing content based on research
+    auth_type: none
+    timeout_ms: 30000
+    retry_config:
+      max_retries: 3
+      initial_delay_ms: 1000
+      max_delay_ms: 30000
+      backoff_multiplier: 2.0
+  
+  # Example with API key authentication
+  # - name: SecureAgent
+  #   url: https://secure-agent.example.com
+  #   description: Agent with API key authentication
+  #   auth_type: apikey
+  #   auth_config:
+  #     api_key: your-api-key-here
+  #     header_name: X-API-Key
+  #   timeout_ms: 60000
+  #   retry_config:
+  #     max_retries: 5
+  #     initial_delay_ms: 2000
+  #     max_delay_ms: 60000
+  #     backoff_multiplier: 2.0
+  
+  # Example with Bearer token authentication
+  # - name: AuthenticatedAgent
+  #   url: https://auth-agent.example.com
+  #   description: Agent with Bearer token authentication
+  #   auth_type: bearer
+  #   auth_config:
+  #     token: your-bearer-token-here
+  #   timeout_ms: 45000

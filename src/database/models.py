@@ -16,10 +16,15 @@ class WorkflowRun(Base):
     run_id = Column(String(255), primary_key=True)
     workflow_id = Column(String(255), nullable=False)
     workflow_name = Column(String(255), nullable=False)
+    workflow_definition_id = Column(String(255), nullable=True)  # UUID reference to workflow_definitions table
     status = Column(String(50), nullable=False)
+    input_data = Column(JSONB, nullable=True)  # Input data provided when triggering the workflow
+    triggered_by = Column(String(255), nullable=True)  # User or system that triggered the execution
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
     completed_at = Column(DateTime, nullable=True)
+    cancelled_at = Column(DateTime, nullable=True)  # Timestamp when workflow was cancelled
+    cancelled_by = Column(String(255), nullable=True)  # User who cancelled the workflow
     error_message = Column(Text, nullable=True)
     
     # Relationship to step executions
@@ -27,6 +32,7 @@ class WorkflowRun(Base):
     
     __table_args__ = (
         Index('idx_run_status', 'status'),
+        Index('idx_run_workflow_definition_id', 'workflow_definition_id'),
     )
 
 

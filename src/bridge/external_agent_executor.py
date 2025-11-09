@@ -1,6 +1,7 @@
 """External Agent Executor (HTTP-Kafka Bridge) implementation."""
 
 import asyncio
+import json
 import logging
 from typing import Optional, Dict, Any
 import httpx
@@ -462,15 +463,225 @@ class ExternalAgentExecutor:
             # Don't raise - we've already logged the error
             # The task will timeout on the executor side
     
+    def _extract_output_from_result(self, result: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Extract output from JSON-RPC result.
+        
+        Extracts text from artifacts and history to create output.
+        
+        Args:
+            result: JSON-RPC result object
+            
+        Returns:
+            Extracted output dictionary
+        """
+        output = {}
+        
+        # Extract from artifacts
+        artifacts = result.get('artifacts', [])
+        if artifacts:
+            artifact_texts = []
+            for artifact in artifacts:
+                parts = artifact.get('parts', [])
+                for part in parts:
+                    if part.get('kind') == 'text':
+                        artifact_texts.append(part.get('text', ''))
+            
+            if artifact_texts:
+                output['text'] = '\n'.join(artifact_texts)
+                output['artifacts'] = artifacts
+        
+        # Extract from history (last agent message)
+        history = result.get('history', [])
+        for item in reversed(history):
+            if item.get('role') == 'agent':
+                parts = item.get('parts', [])
+                for part in parts:
+                    if part.get('kind') == 'text':
+                        output['response'] = part.get('text', '')
+                        break
+                if 'response' in output:
+                    break
+        
+        # Include metadata if present
+        if 'metadata' in result:
+            output['metadata'] = result['metadata']
+        
+        # Include context ID for potential future use
+        if 'contextId' in result:
+            output['context_id'] = result['contextId']
+        
+        # Include task ID if present
+        if 'id' in result:
+            output['task_id'] = result['id']
+        
+        # If no output extracted, return full result
+        if not output:
+            logger.warning(
+                "No output extracted from JSON-RPC result, returning full result",
+                extra={'result': result}
+            )
+            output = result
+        
+        return output
+    
+    def _parse_jsonrpc_response(
+        self, 
+        response: Dict[str, Any], 
+        task_id: str
+    ) -> Dict[str, Any]:
+        """
+        Parse JSON-RPC 2.0 response and convert to internal format.
+        
+        Args:
+            response: JSON-RPC response from agent
+            task_id: Original task ID for correlation
+            
+        Returns:
+            Response in internal format: {task_id, status, output, error}
+            
+        Raises:
+            ValueError: If response is malformed
+        """
+        # Validate JSON-RPC structure
+        if 'jsonrpc' not in response:
+            raise ValueError("Response missing 'jsonrpc' field")
+        
+        if response['jsonrpc'] != '2.0':
+            raise ValueError(
+                f"Unsupported JSON-RPC version: {response['jsonrpc']}"
+            )
+        
+        # Check for error response
+        if 'error' in response:
+            error_obj = response['error']
+            error_code = error_obj.get('code', 'unknown')
+            error_message = error_obj.get('message', 'Unknown error')
+            
+            logger.error(
+                f"JSON-RPC error response: {error_code} - {error_message}",
+                extra={
+                    'task_id': task_id,
+                    'error_code': error_code,
+                    'error_message': error_message,
+                    'error_data': error_obj.get('data')
+                }
+            )
+            
+            return {
+                'task_id': task_id,
+                'status': 'error',
+                'output': None,
+                'error': f"JSON-RPC Error {error_code}: {error_message}"
+            }
+        
+        # Process success response
+        if 'result' not in response:
+            raise ValueError("Response missing both 'result' and 'error'")
+        
+        result = response['result']
+        
+        # Extract status
+        status_obj = result.get('status', {})
+        state = status_obj.get('state', 'unknown')
+        
+        if state == 'completed':
+            status = 'success'
+            error = None
+        else:
+            status = 'error'
+            error = f"Task state: {state}"
+            logger.warning(
+                f"Task completed with non-completed state: {state}",
+                extra={'task_id': task_id, 'state': state}
+            )
+        
+        # Extract output
+        try:
+            output = self._extract_output_from_result(result)
+        except Exception as e:
+            logger.error(
+                f"Failed to extract output from result: {e}",
+                extra={'task_id': task_id, 'result': result}
+            )
+            # Return full result as fallback
+            output = result
+        
+        return {
+            'task_id': task_id,
+            'status': status,
+            'output': output,
+            'error': error
+        }
+    
+    def _convert_input_to_message_parts(self, input_data: Any) -> list:
+        """
+        Convert task input data to JSON-RPC message parts.
+        
+        Args:
+            input_data: Task input data (dict, string, or other)
+            
+        Returns:
+            List of message parts with 'kind' and 'text' fields
+        """
+        parts = []
+        
+        if isinstance(input_data, dict):
+            # Check for common text fields
+            text_content = input_data.get('text') or input_data.get('query')
+            if text_content:
+                parts.append({
+                    'kind': 'text',
+                    'text': str(text_content)
+                })
+            else:
+                # Serialize entire dict as JSON
+                import json
+                parts.append({
+                    'kind': 'text',
+                    'text': json.dumps(input_data)
+                })
+        else:
+            # Convert to string
+            parts.append({
+                'kind': 'text',
+                'text': str(input_data)
+            })
+        
+        return parts
+    
+    def _build_jsonrpc_request(self, task: AgentTask) -> Dict[str, Any]:
+        """
+        Build a JSON-RPC 2.0 request from a task.
+        
+        Args:
+            task: The agent task
+            
+        Returns:
+            JSON-RPC 2.0 formatted request
+        """
+        return {
+            'jsonrpc': '2.0',
+            'id': task.task_id,
+            'method': 'message/send',
+            'params': {
+                'message': {
+                    'role': 'user',
+                    'messageId': f"msg-{task.task_id}",
+                    'parts': self._convert_input_to_message_parts(task.input_data)
+                }
+            }
+        }
+    
     async def invoke_agent(
         self,
         agent_metadata: AgentMetadata,
         task: AgentTask
     ) -> Dict[str, Any]:
         """
-        Invoke an external agent via HTTP.
+        Invoke an external agent via HTTP using JSON-RPC 2.0 protocol.
         
-        Constructs an A2A-compliant HTTP POST request and makes the call
+        Constructs a JSON-RPC 2.0 HTTP POST request and makes the call
         to the agent endpoint with appropriate authentication.
         
         Args:
@@ -478,14 +689,14 @@ class ExternalAgentExecutor:
             task: The agent task containing input data
             
         Returns:
-            The parsed JSON response from the agent
+            The parsed response in internal format
             
         Raises:
             httpx.HTTPError: If the HTTP request fails
         """
         log_event(
             logger, 'info', 'http_call',
-            f"Invoking agent '{agent_metadata.name}' at {agent_metadata.url}",
+            f"Invoking agent '{agent_metadata.name}' at {agent_metadata.url} using JSON-RPC 2.0",
             agent_name=agent_metadata.name,
             agent_url=agent_metadata.url,
             task_id=task.task_id,
@@ -493,15 +704,22 @@ class ExternalAgentExecutor:
             correlation_id=task.correlation_id
         )
         
-        # Construct A2A-compliant request payload
-        request_payload = {
-            'task_id': task.task_id,
-            'input': task.input_data
-        }
+        # Construct JSON-RPC 2.0 request payload
+        request_payload = self._build_jsonrpc_request(task)
+        
+        logger.debug(
+            f"JSON-RPC request for task {task.task_id}",
+            extra={
+                'task_id': task.task_id,
+                'agent_name': agent_metadata.name,
+                'request': request_payload
+            }
+        )
         
         # Prepare headers
         headers = {
             'Content-Type': 'application/json',
+            'Accept': 'application/json',
             'X-Correlation-ID': task.correlation_id
         }
         
@@ -545,6 +763,18 @@ class ExternalAgentExecutor:
             # Parse JSON response
             response_data = response.json()
             
+            logger.debug(
+                f"JSON-RPC response for task {task.task_id}",
+                extra={
+                    'task_id': task.task_id,
+                    'agent_name': agent_metadata.name,
+                    'response': response_data
+                }
+            )
+            
+            # Parse JSON-RPC response and convert to internal format
+            result = self._parse_jsonrpc_response(response_data, task.task_id)
+            
             log_event(
                 logger, 'info', 'http_success',
                 f"Successfully invoked agent '{agent_metadata.name}'",
@@ -552,10 +782,11 @@ class ExternalAgentExecutor:
                 task_id=task.task_id,
                 run_id=task.run_id,
                 status_code=response.status_code,
+                result_status=result.get('status'),
                 correlation_id=task.correlation_id
             )
             
-            return response_data
+            return result
             
         except httpx.HTTPStatusError as e:
             logger.error(

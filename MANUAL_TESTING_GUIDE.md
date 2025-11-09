@@ -74,6 +74,84 @@ Expected response from agent registry:
 }
 ```
 
+**Test agents directly with JSON-RPC 2.0:**
+```bash
+# Test ResearchAgent with JSON-RPC 2.0 request
+curl -X POST http://localhost:8081 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": "test-123",
+    "method": "message/send",
+    "params": {
+      "message": {
+        "role": "user",
+        "messageId": "msg-test-123",
+        "parts": [
+          {
+            "kind": "text",
+            "text": "{\"topic\": \"Artificial Intelligence\", \"depth\": \"basic\"}"
+          }
+        ]
+      }
+    }
+  }'
+
+# Test WriterAgent with JSON-RPC 2.0 request
+curl -X POST http://localhost:8082 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": "test-456",
+    "method": "message/send",
+    "params": {
+      "message": {
+        "role": "user",
+        "messageId": "msg-test-456",
+        "parts": [
+          {
+            "kind": "text",
+            "text": "{\"research_data\": [\"AI is transforming industries\"], \"style\": \"technical\"}"
+          }
+        ]
+      }
+    }
+  }'
+```
+
+Expected JSON-RPC 2.0 response format:
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "test-123",
+  "result": {
+    "status": {
+      "state": "completed"
+    },
+    "artifacts": [
+      {
+        "parts": [
+          {
+            "kind": "text",
+            "text": "Research findings about Artificial Intelligence..."
+          }
+        ]
+      }
+    ],
+    "history": [
+      {
+        "role": "user",
+        "parts": [{"kind": "text", "text": "..."}]
+      },
+      {
+        "role": "agent",
+        "parts": [{"kind": "text", "text": "..."}]
+      }
+    ]
+  }
+}
+```
+
 ## Step 4: Start the HTTP-Kafka Bridge
 
 Start the bridge service that will handle agent invocations:
@@ -231,7 +309,100 @@ ORDER BY started_at;
 
 Exit psql with `\q`
 
-## Step 8: Test Different Scenarios
+## Step 8: Test Agent Protocol Directly
+
+### Test JSON-RPC 2.0 Success Response
+
+Test an agent directly to verify JSON-RPC 2.0 protocol:
+
+```bash
+curl -X POST http://localhost:8081 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": "direct-test-001",
+    "method": "message/send",
+    "params": {
+      "message": {
+        "role": "user",
+        "messageId": "msg-direct-test-001",
+        "parts": [
+          {
+            "kind": "text",
+            "text": "{\"topic\": \"Quantum Computing\"}"
+          }
+        ]
+      }
+    }
+  }' | jq
+```
+
+### Test JSON-RPC 2.0 Error Response
+
+Test error handling by sending invalid input:
+
+```bash
+# Missing required field
+curl -X POST http://localhost:8081 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": "error-test-001",
+    "method": "message/send",
+    "params": {
+      "message": {
+        "role": "user",
+        "messageId": "msg-error-test-001",
+        "parts": [
+          {
+            "kind": "text",
+            "text": "{}"
+          }
+        ]
+      }
+    }
+  }' | jq
+```
+
+Expected error response:
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "error-test-001",
+  "error": {
+    "code": -32602,
+    "message": "Missing required field: topic"
+  }
+}
+```
+
+### Test Invalid JSON-RPC Request
+
+Test with invalid JSON-RPC format:
+
+```bash
+# Invalid jsonrpc version
+curl -X POST http://localhost:8081 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "1.0",
+    "id": "invalid-test-001",
+    "method": "message/send",
+    "params": {}
+  }' | jq
+
+# Invalid method
+curl -X POST http://localhost:8081 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": "invalid-test-002",
+    "method": "invalid/method",
+    "params": {}
+  }' | jq
+```
+
+## Step 9: Test Different Scenarios
 
 ### Test 1: Workflow with Delays
 
@@ -308,7 +479,7 @@ Then run another workflow (repeat Step 5).
    # Run executor (Option A or B from Step 5)
    ```
 
-## Step 9: View Logs
+## Step 10: View Logs
 
 ### Bridge Logs
 ```bash
@@ -331,7 +502,7 @@ docker-compose logs kafka
 docker-compose logs postgres
 ```
 
-## Step 10: Cleanup
+## Step 11: Cleanup
 
 When you're done testing:
 
@@ -416,7 +587,7 @@ docker exec postgres psql -U workflow_user -d workflow_db -c \
 
 - Review the [README.md](README.md) for architecture details
 - Check [WORKFLOW_FORMAT.md](WORKFLOW_FORMAT.md) for workflow syntax
-- See [A2A_AGENT_INTERFACE.md](A2A_AGENT_INTERFACE.md) for agent implementation
+- See [A2A_AGENT_INTERFACE.md](A2A_AGENT_INTERFACE.md) for JSON-RPC 2.0 agent implementation
 - Explore [examples/TESTING.md](examples/TESTING.md) for automated testing
 
 ## Quick Reference

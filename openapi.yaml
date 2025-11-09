@@ -1,0 +1,453 @@
+openapi: 3.0.3
+info:
+  title: Centralized Executor and HTTP-Kafka Bridge API
+  description: |
+    API documentation for the multi-agent orchestration platform.
+    
+    This system consists of:
+    - **Agent Registry**: Provides metadata about available agents
+    - **A2A Agent Interface**: Protocol for agent communication
+    - **Workflow Execution**: Programmatic workflow execution
+    
+    For detailed documentation, see:
+    - [API Documentation](API_DOCUMENTATION.md)
+    - [A2A Agent Interface](A2A_AGENT_INTERFACE.md)
+    - [Workflow Format](WORKFLOW_FORMAT.md)
+  version: 1.0.0
+  contact:
+    name: API Support
+    url: https://github.com/your-org/orchestrator
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8080
+    description: Agent Registry (Local)
+  - url: http://localhost:8081
+    description: Mock ResearchAgent (Local)
+  - url: http://localhost:8082
+    description: Mock WriterAgent (Local)
+
+tags:
+  - name: Agent Registry
+    description: Agent metadata and configuration
+  - name: A2A Agent Interface
+    description: Agent-to-Agent communication protocol
+  - name: Monitoring
+    description: Workflow monitoring and status
+
+paths:
+  # Agent Registry Endpoints
+  /health:
+    get:
+      tags:
+        - Agent Registry
+      summary: Health Check
+      description: Check if the Agent Registry is healthy
+      operationId: getHealth
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: healthy
+
+  /agents/{agentName}:
+    get:
+      tags:
+        - Agent Registry
+      summary: Get Agent Metadata
+      description: Retrieve metadata for a specific agent
+      operationId: getAgent
+      parameters:
+        - name: agentName
+          in: path
+          required: true
+          description: Name of the agent
+          schema:
+            type: string
+          example: ResearchAgent
+      responses:
+        '200':
+          description: Agent metadata found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentMetadata'
+        '404':
+          description: Agent not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: Agent not found
+
+  /agents/{agentName}/recovery:
+    get:
+      tags:
+        - Agent Registry
+      summary: Get Agent Recovery Configuration
+      description: Retrieve recovery configuration for a specific agent
+      operationId: getAgentRecovery
+      parameters:
+        - name: agentName
+          in: path
+          required: true
+          description: Name of the agent
+          schema:
+            type: string
+          example: ResearchAgent
+      responses:
+        '200':
+          description: Recovery configuration found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecoveryConfig'
+        '404':
+          description: Agent not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # A2A Agent Interface Endpoints
+  /:
+    post:
+      tags:
+        - A2A Agent Interface
+      summary: Execute Agent Task
+      description: Execute a task on an A2A-compliant agent
+      operationId: executeTask
+      parameters:
+        - name: X-Correlation-ID
+          in: header
+          required: false
+          description: Correlation ID for tracing
+          schema:
+            type: string
+          example: run-123-corr-456
+        - name: Authorization
+          in: header
+          required: false
+          description: Bearer token (if agent requires authentication)
+          schema:
+            type: string
+          example: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        - name: X-API-Key
+          in: header
+          required: false
+          description: API key (if agent requires authentication)
+          schema:
+            type: string
+          example: sk-1234567890abcdef
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgentTaskRequest'
+            examples:
+              researchAgent:
+                summary: Research Agent Task
+                value:
+                  task_id: task-abc123-def456
+                  input:
+                    topic: Climate Change Impact on Agriculture
+                    depth: comprehensive
+                    sources:
+                      - scientific journals
+                      - government reports
+              writerAgent:
+                summary: Writer Agent Task
+                value:
+                  task_id: task-xyz789-uvw012
+                  input:
+                    research_data:
+                      - source: Nature
+                        content: Finding 1
+                    style: academic
+                    word_count: 1500
+      responses:
+        '200':
+          description: Task processed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentTaskResponse'
+              examples:
+                success:
+                  summary: Successful execution
+                  value:
+                    task_id: task-abc123-def456
+                    status: success
+                    output:
+                      findings:
+                        - source: Nature Climate Change
+                          content: Rising temperatures affect crop yields
+                      summary: Climate change impacts agriculture
+                      confidence: 0.92
+                    error: null
+                error:
+                  summary: Business logic error
+                  value:
+                    task_id: task-abc123-def456
+                    status: error
+                    output: null
+                    error: "Invalid input: 'depth' must be one of: basic, intermediate, comprehensive"
+        '400':
+          description: Bad request - invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - missing or invalid authentication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Too many requests - rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Service unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum: [healthy, unhealthy]
+          description: Health status of the service
+        agent_name:
+          type: string
+          description: Name of the agent (for A2A agents)
+        version:
+          type: string
+          description: Version of the agent
+      example:
+        status: healthy
+        agent_name: ResearchAgent
+        version: 1.0.0
+
+    AgentMetadata:
+      type: object
+      required:
+        - name
+        - url
+        - timeout
+        - retry_config
+      properties:
+        name:
+          type: string
+          description: Agent name
+          example: ResearchAgent
+        url:
+          type: string
+          format: uri
+          description: HTTP endpoint URL for the agent
+          example: http://research-agent:8080
+        auth_config:
+          oneOf:
+            - $ref: '#/components/schemas/BearerAuthConfig'
+            - $ref: '#/components/schemas/ApiKeyAuthConfig'
+            - type: 'null'
+          description: Authentication configuration
+        timeout:
+          type: integer
+          description: Request timeout in milliseconds
+          example: 30000
+          minimum: 1000
+          maximum: 300000
+        retry_config:
+          $ref: '#/components/schemas/RetryConfig'
+
+    BearerAuthConfig:
+      type: object
+      required:
+        - type
+        - token
+      properties:
+        type:
+          type: string
+          enum: [bearer]
+        token:
+          type: string
+          description: Bearer token
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+    ApiKeyAuthConfig:
+      type: object
+      required:
+        - type
+        - key
+      properties:
+        type:
+          type: string
+          enum: [apikey]
+        key:
+          type: string
+          description: API key
+          example: sk-1234567890abcdef
+        header:
+          type: string
+          description: Header name for API key
+          default: X-API-Key
+          example: X-API-Key
+
+    RetryConfig:
+      type: object
+      required:
+        - max_retries
+        - initial_delay_ms
+        - max_delay_ms
+        - backoff_multiplier
+      properties:
+        max_retries:
+          type: integer
+          description: Maximum number of retry attempts
+          example: 3
+          minimum: 0
+          maximum: 10
+        initial_delay_ms:
+          type: integer
+          description: Initial delay before first retry in milliseconds
+          example: 1000
+          minimum: 100
+        max_delay_ms:
+          type: integer
+          description: Maximum delay between retries in milliseconds
+          example: 30000
+          minimum: 1000
+        backoff_multiplier:
+          type: number
+          format: float
+          description: Exponential backoff multiplier
+          example: 2.0
+          minimum: 1.0
+
+    RecoveryConfig:
+      type: object
+      required:
+        - on_failure
+        - max_retries
+      properties:
+        on_failure:
+          type: string
+          enum: [RETRY, FALLBACK, FAIL]
+          description: Recovery strategy
+          example: RETRY
+        fallback_agent:
+          type: string
+          nullable: true
+          description: Name of fallback agent (if strategy is FALLBACK)
+          example: null
+        max_retries:
+          type: integer
+          description: Maximum retry attempts
+          example: 3
+
+    AgentTaskRequest:
+      type: object
+      required:
+        - task_id
+        - input
+      properties:
+        task_id:
+          type: string
+          description: Unique identifier for this task
+          example: task-abc123-def456
+        input:
+          type: object
+          description: Agent-specific input data
+          additionalProperties: true
+          example:
+            topic: Climate Change
+            depth: comprehensive
+
+    AgentTaskResponse:
+      type: object
+      required:
+        - task_id
+        - status
+        - error
+      properties:
+        task_id:
+          type: string
+          description: Must match the request task_id
+          example: task-abc123-def456
+        status:
+          type: string
+          enum: [success, error]
+          description: Execution status
+          example: success
+        output:
+          type: object
+          nullable: true
+          description: Agent-specific output data (null if error)
+          additionalProperties: true
+          example:
+            findings:
+              - source: Nature
+                content: Finding 1
+            summary: Summary text
+        error:
+          type: string
+          nullable: true
+          description: Error message (null if success)
+          example: null
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Error message
+          example: Agent not found
+        details:
+          type: object
+          description: Additional error details
+          additionalProperties: true
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Bearer token authentication
+    
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API key authentication
+
+security:
+  - BearerAuth: []
+  - ApiKeyAuth: []
+  - {}  # No authentication required for some endpoints

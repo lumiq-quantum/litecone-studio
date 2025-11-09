@@ -88,6 +88,69 @@ services:
     profiles:
       - bridge
 
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: workflow-management-api
+    depends_on:
+      - postgres
+      - kafka
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://workflow_user:workflow_pass@postgres:5432/workflow_db
+      - KAFKA_BROKERS=kafka:29092
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+    env_file:
+      - .env.api
+    networks:
+      - orchestrator-network
+    profiles:
+      - api
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    # Resource limits (adjust based on your needs)
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  execution-consumer:
+    build:
+      context: .
+      dockerfile: Dockerfile.consumer
+    container_name: execution-consumer
+    depends_on:
+      - kafka
+      - postgres
+    environment:
+      - KAFKA_BROKERS=kafka:29092
+      - DATABASE_URL=postgresql://workflow_user:workflow_pass@postgres:5432/workflow_db
+      - AGENT_REGISTRY_URL=http://agent-registry:8080
+      - KAFKA_GROUP_ID=execution-consumer-group
+      - KAFKA_EXECUTION_TOPIC=workflow.execution.requests
+      - KAFKA_CANCELLATION_TOPIC=workflow.cancellation.requests
+      - LOG_LEVEL=INFO
+      - LOG_FORMAT=json
+    env_file:
+      - .env
+    networks:
+      - orchestrator-network
+    profiles:
+      - consumer
+    restart: unless-stopped
+
 volumes:
   postgres-data:
 

@@ -1,0 +1,15 @@
+{
+  "name": "dice-workflow",
+  "description": "Simple workflow with one agent",
+  "start_step": "step-1",
+  "steps": {
+    "step-1": {
+      "id": "step-1",
+      "agent_name": "TestAgent",
+      "next_step": null,
+      "input_mapping": {
+        "sides": "${workflow.input.sides}"
+      }
+    }
+  }
+}

@@ -443,8 +443,14 @@ Planned features for future versions:
 - **Sub-workflows**: Nest workflows within steps
 - **Dynamic Step Generation**: Create steps at runtime based on data
 
+## Agent Communication Protocol
+
+Agents invoked by workflows communicate using the JSON-RPC 2.0 protocol. The workflow definition itself is protocol-agnostic - the bridge service handles translating workflow steps into JSON-RPC requests to agents.
+
+For details on how agents receive requests and return responses, see the [A2A Agent Interface Specification](A2A_AGENT_INTERFACE.md).
+
 ## See Also
 
-- [A2A Agent Interface Specification](A2A_AGENT_INTERFACE.md)
+- [A2A Agent Interface Specification](A2A_AGENT_INTERFACE.md) - JSON-RPC 2.0 protocol details
 - [README.md](README.md) - Project overview
 - [examples/workflow_README.md](examples/workflow_README.md) - Example workflows
