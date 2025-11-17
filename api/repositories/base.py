@@ -2,7 +2,7 @@
 
 from typing import TypeVar, Generic, Type, Optional, List, Dict, Any
 from uuid import UUID
-from sqlalchemy import select, update, delete, func
+from sqlalchemy import select, update, delete, func, inspect
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import DeclarativeBase
 from pydantic import BaseModel
@@ -252,9 +252,13 @@ class BaseRepository(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         # Merge with additional kwargs
         update_data.update(kwargs)
         
-        # Update fields
+        # Get mapper to check valid columns without triggering lazy loads
+        mapper = inspect(self.model)
+        valid_columns = {col.key for col in mapper.columns}
+        
+        # Update fields (only update actual columns, not relationships)
         for field, value in update_data.items():
-            if hasattr(db_obj, field):
+            if field in valid_columns:
                 setattr(db_obj, field, value)
         
         # Flush changes

@@ -254,45 +254,49 @@ class AgentService:
     
     async def check_agent_health(self, agent_id: UUID) -> dict:
         """
-        Check the health of an agent by making an HTTP call to its endpoint.
+        Check the health of an agent by calling its agent-card endpoint.
         
         This method performs a health check by sending a GET request to the
-        agent's /health endpoint. It respects the agent's timeout configuration
-        and authentication settings.
+        agent's /.well-known/agent-card.json endpoint. It respects the agent's
+        timeout configuration and authentication settings.
         
         Args:
             agent_id: UUID of the agent to check
         
         Returns:
             Dictionary containing health check results:
-            - healthy: bool indicating if agent is healthy
-            - status_code: HTTP status code (if request succeeded)
+            - status: 'healthy' or 'unhealthy'
+            - message: Description or error message
             - response_time_ms: Response time in milliseconds
-            - error: Error message (if request failed)
+            - timestamp: ISO timestamp of the check
+            - agent_card: Agent card data (if successful)
         
         Raises:
             ValueError: If agent not found
         
         Example:
             health = await agent_service.check_agent_health(agent_id)
-            if health["healthy"]:
+            if health["status"] == "healthy":
                 print(f"Agent is healthy (response time: {health['response_time_ms']}ms)")
+                print(f"Capabilities: {health['agent_card']['capabilities']}")
             else:
-                print(f"Agent is unhealthy: {health['error']}")
+                print(f"Agent is unhealthy: {health['message']}")
         
         Requirements:
         - 1.5: Provides health check via GET /api/v1/agents/{agent_id}/health
         """
+        from datetime import datetime
+        
         # Get agent
         agent = await self.repository.get_by_id(agent_id)
         if not agent:
             raise ValueError(f"Agent with id '{agent_id}' not found")
         
-        # Prepare health check URL
-        health_url = f"{agent.url.rstrip('/')}/health"
+        # Prepare agent-card URL
+        agent_card_url = f"{agent.url.rstrip('/')}/.well-known/agent-card.json"
         
         # Prepare headers based on auth configuration
-        headers = {}
+        headers = {"Content-Type": "application/json"}
         if agent.auth_type == "bearer" and agent.auth_config:
             token = agent.auth_config.get("token")
             if token:
@@ -305,10 +309,11 @@ class AgentService:
         
         # Perform health check
         result = {
-            "healthy": False,
-            "status_code": None,
+            "status": "unhealthy",
+            "message": None,
             "response_time_ms": None,
-            "error": None
+            "timestamp": datetime.utcnow().isoformat(),
+            "agent_card": None
         }
         
         try:
@@ -316,23 +321,29 @@ class AgentService:
                 import time
                 start_time = time.time()
                 
-                response = await client.get(health_url, headers=headers)
+                response = await client.get(agent_card_url, headers=headers)
                 
                 end_time = time.time()
                 response_time_ms = int((end_time - start_time) * 1000)
                 
-                result["status_code"] = response.status_code
                 result["response_time_ms"] = response_time_ms
-                result["healthy"] = response.status_code == 200
                 
-                if response.status_code != 200:
-                    result["error"] = f"Unhealthy status code: {response.status_code}"
+                if response.status_code == 200:
+                    try:
+                        agent_card = response.json()
+                        result["status"] = "healthy"
+                        result["message"] = agent_card.get("description", "Agent is responding")
+                        result["agent_card"] = agent_card
+                    except Exception as e:
+                        result["message"] = f"Invalid agent card response: {str(e)}"
+                else:
+                    result["message"] = f"Agent returned status {response.status_code}"
         
         except httpx.TimeoutException:
-            result["error"] = f"Request timed out after {agent.timeout_ms}ms"
+            result["message"] = f"Request timeout after {agent.timeout_ms}ms"
         except httpx.RequestError as e:
-            result["error"] = f"Request failed: {str(e)}"
+            result["message"] = f"Failed to connect to agent: {str(e)}"
         except Exception as e:
-            result["error"] = f"Unexpected error: {str(e)}"
+            result["message"] = f"Unexpected error: {str(e)}"
         
         return result

@@ -151,6 +151,86 @@ services:
       - consumer
     restart: unless-stopped
 
+  workflow-ui:
+    build:
+      context: ./workflow-ui
+      dockerfile: Dockerfile
+    container_name: workflow-ui
+    depends_on:
+      - api
+    ports:
+      - "3000:80"
+    environment:
+      - VITE_API_URL=${VITE_API_URL:-http://localhost:8000/api/v1}
+      - VITE_POLLING_INTERVAL=${VITE_POLLING_INTERVAL:-2000}
+      - VITE_APP_NAME=${VITE_APP_NAME:-Workflow Manager}
+    networks:
+      - orchestrator-network
+    profiles:
+      - ui
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+  # Mock Research Agent (for testing)
+  research-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile.mock-agent
+    container_name: research-agent
+    ports:
+      - "8081:8080"
+    environment:
+      - AGENT_NAME=ResearchAgent
+      - AGENT_PORT=8080
+      - AGENT_DELAY_MS=100
+      - AGENT_ERROR_MODE=none
+      - AGENT_ERROR_RATE=0.0
+    networks:
+      - orchestrator-network
+    profiles:
+      - test
+
+  # Mock Writer Agent (for testing)
+  writer-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile.mock-agent
+    container_name: writer-agent
+    ports:
+      - "8082:8080"
+    environment:
+      - AGENT_NAME=WriterAgent
+      - AGENT_PORT=8080
+      - AGENT_DELAY_MS=200
+      - AGENT_ERROR_MODE=none
+      - AGENT_ERROR_RATE=0.0
+    networks:
+      - orchestrator-network
+    profiles:
+      - test
+
+  # Mock Agent Registry (for testing)
+  agent-registry:
+    image: python:3.11-slim
+    container_name: agent-registry
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./examples/mock_agent_registry.py:/app/mock_agent_registry.py:ro
+    working_dir: /app
+    command: python mock_agent_registry.py
+    environment:
+      - PORT=8080
+    networks:
+      - orchestrator-network
+    profiles:
+      - test
+
 volumes:
   postgres-data:
 

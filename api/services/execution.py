@@ -116,7 +116,7 @@ class ExecutionService:
         # Create run record with PENDING status
         run = WorkflowRun(
             run_id=run_id,
-            workflow_id=workflow.workflow_data.get("workflow_id", f"wf-{workflow.name}-{workflow.version}"),
+            workflow_id=str(workflow_id),  # Use the actual workflow UUID from database
             workflow_name=workflow.name,
             workflow_definition_id=str(workflow_id),
             status='PENDING',

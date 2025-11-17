@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  workflow-ui:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: workflow-ui
+    ports:
+      - "3000:80"
+    environment:
+      # These will be baked into the build
+      - VITE_API_URL=${VITE_API_URL:-http://localhost:8000/api/v1}
+      - VITE_POLLING_INTERVAL=${VITE_POLLING_INTERVAL:-2000}
+      - VITE_APP_NAME=${VITE_APP_NAME:-Workflow Manager}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s

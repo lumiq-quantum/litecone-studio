@@ -133,12 +133,13 @@ register_exception_handlers(app)
 register_logging_middleware(app)
 
 # Configure CORS
+cors_origins = settings.get_cors_origins_list() if settings.cors_origins != "*" else ["*"]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins,
+    allow_origins=cors_origins,
     allow_credentials=settings.cors_allow_credentials,
-    allow_methods=settings.cors_allow_methods,
-    allow_headers=settings.cors_allow_headers,
+    allow_methods=settings.get_cors_methods_list(),
+    allow_headers=settings.get_cors_headers_list(),
 )
 
 # Register routers
