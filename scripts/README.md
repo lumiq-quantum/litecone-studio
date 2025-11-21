@@ -53,6 +53,17 @@ These remain at the project root for easy access:
 
 - `agents.yaml.example` - Example agent configuration
 
+## CI/CD Scripts
+
+- `init-version.sh` - Initialize version tagging for CI/CD pipeline
+
+### Initialize CI/CD
+```bash
+./scripts/init-version.sh
+```
+
+This sets up the initial version tag for automated builds. See [CICD_QUICK_START.md](../CICD_QUICK_START.md) for details.
+
 ## Usage Examples
 
 ### Start the system

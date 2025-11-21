@@ -8,6 +8,21 @@ Fast access to commonly used files and commands.
 ./quick-start.sh              # Start everything and run test
 ```
 
+## 🔄 CI/CD Pipeline
+
+```bash
+# Initialize CI/CD (first time only)
+./scripts/init-version.sh
+
+# Trigger automatic build
+git push origin main          # Builds and publishes Docker images
+
+# View builds
+# Go to: https://github.com/YOUR_USERNAME/REPO/actions
+```
+
+**See:** [CICD_QUICK_START.md](CICD_QUICK_START.md) for setup guide
+
 ## 📖 Essential Documentation
 
 | What | Where |

@@ -2,7 +2,7 @@
 
 Multi-agent orchestration platform components for executing workflows through asynchronous Kafka communication.
 
-> 📌 **Quick Links:** [Quick Reference](QUICK_REFERENCE.md) | [Documentation Index](docs/README.md) | [Project Structure](PROJECT_STRUCTURE.md)
+> 📌 **Quick Links:** [Quick Reference](QUICK_REFERENCE.md) | [CI/CD Setup](CICD_QUICK_START.md) | [Documentation Index](docs/README.md) | [Project Structure](PROJECT_STRUCTURE.md)
 
 ## Components
 
@@ -221,6 +221,17 @@ All documentation is now organized in the [`docs/`](docs/) directory. See [docs/
 ## Development
 
 This project uses Python 3.11+ with async/await patterns for concurrent operations.
+
+## CI/CD
+
+Automated Docker image builds are configured via GitHub Actions. Every push to `main`/`master` automatically:
+- Builds all Docker images
+- Publishes to GitHub Container Registry
+- Creates version tags and releases
+
+**Quick Start:** See [CICD_QUICK_START.md](CICD_QUICK_START.md)
+
+**Detailed Guide:** See [docs/deployment/CICD_SETUP.md](docs/deployment/CICD_SETUP.md)
 
 ## License
 
