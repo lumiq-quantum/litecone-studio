@@ -12,6 +12,11 @@ from src.agent_registry.client import AgentRegistryClient
 from src.agent_registry.models import AgentMetadata, RetryConfig
 from src.models.kafka_messages import AgentTask, AgentResult
 from src.utils.logging import set_correlation_id, log_event
+from src.bridge.circuit_breaker import (
+    CircuitBreakerManager,
+    CircuitBreakerConfig,
+    CircuitBreakerOpenError
+)
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +33,8 @@ class ExternalAgentExecutor:
         self,
         kafka_bootstrap_servers: str,
         agent_registry_url: str,
+        redis_url: str,
+        circuit_breaker_config: CircuitBreakerConfig,
         tasks_topic: str = "orchestrator.tasks.http",
         results_topic: str = "results.topic",
         consumer_group_id: str = "external-agent-executor-group",
@@ -40,6 +47,8 @@ class ExternalAgentExecutor:
         Args:
             kafka_bootstrap_servers: Comma-separated list of Kafka broker addresses
             agent_registry_url: Base URL of the Agent Registry service
+            redis_url: Redis connection URL for circuit breaker
+            circuit_breaker_config: Default circuit breaker configuration
             tasks_topic: Kafka topic to consume agent tasks from
             results_topic: Kafka topic to publish agent results to
             consumer_group_id: Consumer group ID for Kafka consumer
@@ -48,6 +57,8 @@ class ExternalAgentExecutor:
         """
         self.kafka_bootstrap_servers = kafka_bootstrap_servers
         self.agent_registry_url = agent_registry_url
+        self.redis_url = redis_url
+        self.circuit_breaker_default_config = circuit_breaker_config
         self.tasks_topic = tasks_topic
         self.results_topic = results_topic
         self.consumer_group_id = consumer_group_id
@@ -65,6 +76,9 @@ class ExternalAgentExecutor:
         
         # Initialize HTTP client for agent invocations
         self.http_client: Optional[httpx.AsyncClient] = None
+        
+        # Initialize Circuit Breaker Manager
+        self.circuit_breaker_manager: Optional[CircuitBreakerManager] = None
         
         # Flag to control the main loop
         self._running = False
@@ -126,6 +140,14 @@ class ExternalAgentExecutor:
             timeout=httpx.Timeout(self.http_timeout_seconds)
         )
         logger.info(f"HTTP client initialized with timeout={self.http_timeout_seconds}s")
+        
+        # Initialize Circuit Breaker Manager
+        self.circuit_breaker_manager = CircuitBreakerManager(
+            redis_url=self.redis_url,
+            default_config=self.circuit_breaker_default_config
+        )
+        await self.circuit_breaker_manager.initialize()
+        logger.info("Circuit Breaker Manager initialized")
         
         logger.info("External Agent Executor initialization complete")
 
@@ -233,6 +255,11 @@ class ExternalAgentExecutor:
         if self.http_client:
             await self.http_client.aclose()
             logger.info("HTTP client closed")
+        
+        # Close Circuit Breaker Manager
+        if self.circuit_breaker_manager:
+            await self.circuit_breaker_manager.close()
+            logger.info("Circuit Breaker Manager closed")
         
         logger.info("External Agent Executor shutdown complete")
 
@@ -683,6 +710,63 @@ class ExternalAgentExecutor:
         
         Constructs a JSON-RPC 2.0 HTTP POST request and makes the call
         to the agent endpoint with appropriate authentication.
+        Uses circuit breaker to prevent calls to failing agents.
+        
+        Args:
+            agent_metadata: Metadata about the agent including URL and auth config
+            task: The agent task containing input data
+            
+        Returns:
+            The parsed response in internal format
+            
+        Raises:
+            httpx.HTTPError: If the HTTP request fails
+            CircuitBreakerOpenError: If circuit breaker is open
+        """
+        # Get circuit breaker for this agent
+        circuit_breaker_config = None
+        if agent_metadata.circuit_breaker_config:
+            # Convert Pydantic model to dataclass
+            circuit_breaker_config = CircuitBreakerConfig(
+                enabled=agent_metadata.circuit_breaker_config.enabled,
+                failure_threshold=agent_metadata.circuit_breaker_config.failure_threshold,
+                failure_rate_threshold=agent_metadata.circuit_breaker_config.failure_rate_threshold,
+                timeout_seconds=agent_metadata.circuit_breaker_config.timeout_seconds,
+                half_open_max_calls=agent_metadata.circuit_breaker_config.half_open_max_calls,
+                window_size_seconds=agent_metadata.circuit_breaker_config.window_size_seconds
+            )
+        
+        circuit_breaker = self.circuit_breaker_manager.get_circuit_breaker(
+            agent_name=agent_metadata.name,
+            config=circuit_breaker_config
+        )
+        
+        # Execute through circuit breaker
+        try:
+            return await circuit_breaker.call(
+                lambda: self._invoke_agent_http(agent_metadata, task)
+            )
+        except CircuitBreakerOpenError as e:
+            # Circuit is open, fail immediately
+            log_event(
+                logger, 'warning', 'circuit_breaker_open',
+                f"Circuit breaker open for agent '{agent_metadata.name}'",
+                agent_name=agent_metadata.name,
+                task_id=task.task_id,
+                run_id=task.run_id,
+                correlation_id=task.correlation_id
+            )
+            raise
+    
+    async def _invoke_agent_http(
+        self,
+        agent_metadata: AgentMetadata,
+        task: AgentTask
+    ) -> Dict[str, Any]:
+        """
+        Internal method to invoke agent via HTTP.
+        
+        This method is called by the circuit breaker.
         
         Args:
             agent_metadata: Metadata about the agent including URL and auth config

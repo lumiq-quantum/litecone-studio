@@ -19,35 +19,13 @@ from src.database.connection import DatabaseConnection
 from src.database.repositories import WorkflowRepository, StepRepository
 from src.agent_registry.client import AgentRegistryClient
 from src.utils.logging import setup_logging, set_correlation_id, log_event
+from src.executor.execution_models import ExecutionStatus, StepResult
+from src.executor.parallel_executor import ParallelExecutor, ParallelBlock
+from src.executor.conditional_executor import ConditionalExecutor
+from src.executor.loop_executor import LoopExecutor
+from src.executor.fork_join_executor import ForkJoinExecutor
 
 logger = logging.getLogger(__name__)
-
-
-class ExecutionStatus:
-    """Constants for execution status values."""
-    PENDING = "PENDING"
-    RUNNING = "RUNNING"
-    COMPLETED = "COMPLETED"
-    FAILED = "FAILED"
-
-
-class StepResult:
-    """Container for step execution results."""
-    
-    def __init__(
-        self,
-        step_id: str,
-        status: str,
-        input_data: Dict[str, Any],
-        output_data: Optional[Dict[str, Any]] = None,
-        error_message: Optional[str] = None
-    ):
-        self.step_id = step_id
-        self.status = status
-        self.input_data = input_data
-        self.output_data = output_data
-        self.error_message = error_message
-        self.timestamp = datetime.utcnow()
 
 
 class CentralizedExecutor:
@@ -110,6 +88,21 @@ class CentralizedExecutor:
         self.execution_state: Dict[str, StepResult] = {}
         self.step_outputs: Dict[str, Dict[str, Any]] = {}
         
+        # Loop context (set when executing loop iterations)
+        self.loop_context: Optional[Any] = None
+        
+        # Parallel executor (initialized after self reference is available)
+        self.parallel_executor: Optional[ParallelExecutor] = None
+        
+        # Conditional executor (initialized after self reference is available)
+        self.conditional_executor: Optional[ConditionalExecutor] = None
+        
+        # Loop executor (initialized after self reference is available)
+        self.loop_executor: Optional[Any] = None
+        
+        # Fork-join executor (initialized after self reference is available)
+        self.fork_join_executor: Optional[ForkJoinExecutor] = None
+        
         logger.info(
             f"Initialized CentralizedExecutor for run_id={run_id}, "
             f"workflow_id={workflow_plan.workflow_id}"
@@ -158,6 +151,22 @@ class CentralizedExecutor:
             # Initialize Agent Registry client
             logger.debug("Initializing Agent Registry client")
             self.agent_registry = AgentRegistryClient(self.agent_registry_url)
+            
+            # Initialize Parallel Executor
+            logger.debug("Initializing Parallel Executor")
+            self.parallel_executor = ParallelExecutor(self)
+            
+            # Initialize Conditional Executor
+            logger.debug("Initializing Conditional Executor")
+            self.conditional_executor = ConditionalExecutor(self)
+            
+            # Initialize Loop Executor
+            logger.debug("Initializing Loop Executor")
+            self.loop_executor = LoopExecutor(self)
+            
+            # Initialize Fork-Join Executor
+            logger.debug("Initializing Fork-Join Executor")
+            self.fork_join_executor = ForkJoinExecutor(self)
             
             # Validate workflow plan structure
             logger.debug("Validating workflow plan structure")
@@ -460,7 +469,11 @@ class CentralizedExecutor:
         """
         Execute a single workflow step.
         
-        This method:
+        This method dispatches to the appropriate executor based on step type:
+        - 'parallel': Dispatches to ParallelExecutor
+        - 'agent': Executes as a standard agent step (default)
+        
+        For agent steps:
         1. Resolves input data using input_mapping and previous outputs
         2. Creates step execution record in database with status RUNNING
         3. Publishes monitoring update with status RUNNING
@@ -477,6 +490,146 @@ class CentralizedExecutor:
             
         Raises:
             Exception: If step execution fails critically
+        """
+        # Dispatch to appropriate executor based on step type
+        if step.type == 'parallel':
+            logger.info(f"Dispatching parallel step '{step.id}' to ParallelExecutor")
+            return await self._execute_parallel_step(step)
+        
+        elif step.type == 'conditional':
+            logger.info(f"Dispatching conditional step '{step.id}' to ConditionalExecutor")
+            return await self._execute_conditional_step(step)
+        
+        elif step.type == 'loop':
+            logger.info(f"Dispatching loop step '{step.id}' to LoopExecutor")
+            return await self._execute_loop_step(step)
+        
+        elif step.type == 'fork_join':
+            logger.info(f"Dispatching fork-join step '{step.id}' to ForkJoinExecutor")
+            return await self._execute_fork_join_step(step)
+        
+        # Default: execute as agent step
+        return await self._execute_agent_step(step)
+    
+    async def _execute_parallel_step(self, step: WorkflowStep) -> StepResult:
+        """
+        Execute a parallel step by dispatching to ParallelExecutor.
+        
+        Args:
+            step: The parallel WorkflowStep to execute
+            
+        Returns:
+            StepResult containing aggregated results from all parallel steps
+        """
+        logger.info(
+            f"Executing parallel step '{step.id}' with {len(step.parallel_steps)} parallel steps"
+        )
+        
+        # Create ParallelBlock from step configuration
+        parallel_block = ParallelBlock(
+            id=step.id,
+            parallel_steps=step.parallel_steps,
+            max_parallelism=step.max_parallelism,
+            next_step=step.next_step
+        )
+        
+        # Execute parallel block
+        results = await self.parallel_executor.execute_parallel_block(parallel_block)
+        
+        # Aggregate results
+        all_succeeded = all(
+            r.status == ExecutionStatus.COMPLETED 
+            for r in results.values()
+        )
+        
+        # Store individual step outputs
+        for step_id, result in results.items():
+            if result.output_data:
+                self.step_outputs[step_id] = result.output_data
+        
+        # Create aggregated result for the parallel block
+        if all_succeeded:
+            # Aggregate all outputs into a single result
+            aggregated_output = {
+                step_id: result.output_data 
+                for step_id, result in results.items()
+            }
+            
+            return StepResult(
+                step_id=step.id,
+                status=ExecutionStatus.COMPLETED,
+                input_data={},
+                output_data=aggregated_output
+            )
+        else:
+            # At least one step failed
+            failed_steps = [
+                step_id for step_id, result in results.items()
+                if result.status == ExecutionStatus.FAILED
+            ]
+            error_message = f"Parallel execution failed: {len(failed_steps)} step(s) failed: {', '.join(failed_steps)}"
+            
+            return StepResult(
+                step_id=step.id,
+                status=ExecutionStatus.FAILED,
+                input_data={},
+                error_message=error_message
+            )
+    
+    async def _execute_conditional_step(self, step: WorkflowStep) -> StepResult:
+        """
+        Execute a conditional step by dispatching to ConditionalExecutor.
+        
+        Args:
+            step: The conditional WorkflowStep to execute
+            
+        Returns:
+            StepResult from the executed branch
+        """
+        logger.info(f"Executing conditional step '{step.id}'")
+        
+        # Execute conditional logic
+        return await self.conditional_executor.execute_conditional(step)
+    
+    async def _execute_loop_step(self, step: WorkflowStep) -> StepResult:
+        """
+        Execute a loop step by dispatching to LoopExecutor.
+        
+        Args:
+            step: The loop WorkflowStep to execute
+            
+        Returns:
+            StepResult containing aggregated results from all iterations
+        """
+        logger.info(f"Executing loop step '{step.id}'")
+        
+        # Execute loop
+        return await self.loop_executor.execute_loop(step.id, step.loop_config)
+    
+    async def _execute_fork_join_step(self, step: WorkflowStep) -> StepResult:
+        """
+        Execute a fork-join step by dispatching to ForkJoinExecutor.
+        
+        Args:
+            step: The fork-join WorkflowStep to execute
+            
+        Returns:
+            StepResult containing aggregated results from all branches
+        """
+        logger.info(f"Executing fork-join step '{step.id}'")
+        
+        # Execute fork-join
+        return await self.fork_join_executor.execute_fork_join(step.id, step.fork_join_config)
+    
+    async def _execute_agent_step(self, step: WorkflowStep) -> StepResult:
+        """
+        Execute a standard agent step.
+        
+        Args:
+            step: The WorkflowStep to execute
+            
+        Returns:
+            StepResult containing execution status and output data
         """
         # Generate unique IDs for this execution
         step_execution_id = f"{self.run_id}-{step.id}-{uuid.uuid4().hex[:8]}"
@@ -499,7 +652,8 @@ class CentralizedExecutor:
             logger.debug(f"Resolving input data for step '{step.id}'")
             resolver = InputMappingResolver(
                 workflow_input=self.initial_input,
-                step_outputs=self.step_outputs
+                step_outputs=self.step_outputs,
+                loop_context=self.loop_context
             )
             input_data = resolver.resolve(step.input_mapping)
             logger.debug(

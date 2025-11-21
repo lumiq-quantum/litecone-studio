@@ -1,0 +1,56 @@
+{
+  "workflow_id": "conditional-example",
+  "name": "Conditional Workflow Example",
+  "version": "1.0",
+  "start_step": "step-1",
+  "steps": {
+    "step-1": {
+      "id": "step-1",
+      "type": "agent",
+      "agent_name": "TheDiceRoller2",
+      "input_mapping": {
+        "data": "${workflow.input.data}"
+      },
+      "next_step": "step-2"
+    },
+    "step-2": {
+      "id": "step-2",
+      "type": "conditional",
+      "condition": {
+        "expression": "10 > 0.8"
+      },
+      "if_true_step": "step-3-high-score",
+      "if_false_step": "step-4-low-score",
+      "next_step": "step-5"
+    },
+    "step-3-high-score": {
+      "id": "step-3-high-score",
+      "type": "agent",
+      "agent_name": "TheDiceRoller2",
+      "input_mapping": {
+        "data": "10",
+        "score": "10"
+      },
+      "next_step": null
+    },
+    "step-4-low-score": {
+      "id": "step-4-low-score",
+      "type": "agent",
+      "agent_name": "TheDiceRoller2",
+      "input_mapping": {
+        "data": "10",
+        "score": "10"
+      },
+      "next_step": null
+    },
+    "step-5": {
+      "id": "step-5",
+      "type": "agent",
+      "agent_name": "TheDiceRoller2",
+      "input_mapping": {
+        "result": "10"
+      },
+      "next_step": null
+    }
+  }
+}

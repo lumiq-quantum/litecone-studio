@@ -1,0 +1,52 @@
+{
+  "workflow_id": "loop-parallel-example",
+  "name": "Parallel Loop Workflow Example",
+  "version": "1.0",
+  "start_step": "step-1",
+  "steps": {
+    "step-1": {
+      "id": "step-1",
+      "type": "agent",
+      "agent_name": "DataFetcher",
+      "input_mapping": {
+        "source": "${workflow.input.data_source}"
+      },
+      "next_step": "step-2"
+    },
+    "step-2": {
+      "id": "step-2",
+      "type": "loop",
+      "loop_config": {
+        "collection": "${step-1.output.items}",
+        "loop_body": ["step-2-process"],
+        "execution_mode": "parallel",
+        "max_parallelism": 5,
+        "max_iterations": 100,
+        "on_error": "collect"
+      },
+      "next_step": "step-3"
+    },
+    "step-2-process": {
+      "id": "step-2-process",
+      "type": "agent",
+      "agent_name": "ItemProcessor",
+      "input_mapping": {
+        "item": "${loop.item}",
+        "index": "${loop.index}",
+        "is_first": "${loop.is_first}",
+        "is_last": "${loop.is_last}"
+      },
+      "next_step": null
+    },
+    "step-3": {
+      "id": "step-3",
+      "type": "agent",
+      "agent_name": "ResultAggregator",
+      "input_mapping": {
+        "iterations": "${step-2.output.iterations}",
+        "total_count": "${step-2.output.total_count}"
+      },
+      "next_step": null
+    }
+  }
+}

@@ -7,12 +7,36 @@ from datetime import datetime
 from uuid import UUID
 
 
+class ConditionSchema(BaseModel):
+    """Schema for conditional expression."""
+    expression: str = Field(..., min_length=1, description="Condition expression to evaluate")
+    operator: Optional[str] = Field(None, description="Optional simple operator for basic comparisons")
+
+    @field_validator('expression')
+    @classmethod
+    def validate_expression(cls, v: str) -> str:
+        """Validate expression is not empty."""
+        if not v.strip():
+            raise ValueError("Condition expression cannot be empty or whitespace")
+        return v
+
+
 class WorkflowStepSchema(BaseModel):
     """Schema for a single workflow step definition."""
     id: str = Field(..., min_length=1, max_length=255, description="Unique step identifier")
-    agent_name: str = Field(..., min_length=1, max_length=255, description="Name of the agent to invoke")
+    type: Optional[str] = Field("agent", description="Step type: agent, parallel, or conditional")
+    agent_name: Optional[str] = Field(None, min_length=1, max_length=255, description="Name of the agent to invoke (required for type=agent)")
     next_step: Optional[str] = Field(None, description="ID of the next step, or null if final step")
-    input_mapping: Dict[str, Any] = Field(..., description="Map of input field names to value expressions")
+    input_mapping: Optional[Dict[str, Any]] = Field(None, description="Map of input field names to value expressions (required for type=agent)")
+    
+    # Parallel execution fields
+    parallel_steps: Optional[list[str]] = Field(None, description="List of step IDs to execute in parallel (required for type=parallel)")
+    max_parallelism: Optional[int] = Field(None, description="Maximum number of concurrent executions (optional for type=parallel)")
+    
+    # Conditional execution fields
+    condition: Optional[ConditionSchema] = Field(None, description="Condition to evaluate for branching (required for type=conditional)")
+    if_true_step: Optional[str] = Field(None, description="Step ID to execute if condition is true (optional for type=conditional)")
+    if_false_step: Optional[str] = Field(None, description="Step ID to execute if condition is false (optional for type=conditional)")
 
     @field_validator('id')
     @classmethod
@@ -25,21 +49,51 @@ class WorkflowStepSchema(BaseModel):
             raise ValueError("Step ID can only contain alphanumeric characters, hyphens, and underscores")
         return v
 
+    @field_validator('type')
+    @classmethod
+    def validate_type(cls, v: Optional[str]) -> str:
+        """Validate step type."""
+        if v is None:
+            return "agent"
+        allowed_types = {'agent', 'parallel', 'conditional'}
+        if v not in allowed_types:
+            raise ValueError(f"Step type must be one of: {', '.join(allowed_types)}")
+        return v
+
     @field_validator('agent_name')
     @classmethod
-    def validate_agent_name(cls, v: str) -> str:
-        """Validate agent name is not empty."""
-        if not v.strip():
+    def validate_agent_name(cls, v: Optional[str]) -> Optional[str]:
+        """Validate agent name is not empty if provided."""
+        if v is not None and not v.strip():
             raise ValueError("Agent name cannot be empty or whitespace")
         return v
 
-    @field_validator('input_mapping')
-    @classmethod
-    def validate_input_mapping(cls, v: Dict[str, Any]) -> Dict[str, Any]:
-        """Validate input mapping is not empty."""
-        if not v:
-            raise ValueError("Input mapping cannot be empty")
-        return v
+    @model_validator(mode='after')
+    def validate_step_configuration(self) -> 'WorkflowStepSchema':
+        """Validate step configuration based on type."""
+        step_type = self.type or 'agent'
+        
+        if step_type == 'agent':
+            if not self.agent_name:
+                raise ValueError(f"agent_name is required for step type 'agent' (step: {self.id})")
+            if self.input_mapping is None:
+                raise ValueError(f"input_mapping is required for step type 'agent' (step: {self.id})")
+        
+        elif step_type == 'parallel':
+            if not self.parallel_steps:
+                raise ValueError(f"parallel_steps is required for step type 'parallel' (step: {self.id})")
+            if len(self.parallel_steps) < 2:
+                raise ValueError(f"parallel_steps must contain at least 2 steps (step: {self.id})")
+            if self.max_parallelism is not None and self.max_parallelism < 1:
+                raise ValueError(f"max_parallelism must be at least 1 (step: {self.id})")
+        
+        elif step_type == 'conditional':
+            if not self.condition:
+                raise ValueError(f"condition is required for step type 'conditional' (step: {self.id})")
+            if not self.if_true_step and not self.if_false_step:
+                raise ValueError(f"At least one of if_true_step or if_false_step must be specified for step type 'conditional' (step: {self.id})")
+        
+        return self
 
 
 class WorkflowCreate(BaseModel):
@@ -127,13 +181,34 @@ class WorkflowCreate(BaseModel):
     def _validate_all_steps_reachable(self) -> None:
         """Validate all steps are reachable from start_step."""
         reachable = set()
-        current = self.start_step
+        to_visit = [self.start_step]
         
-        # Follow the chain from start_step
-        while current and current not in reachable:
+        # BFS to find all reachable steps
+        while to_visit:
+            current = to_visit.pop(0)
+            if current in reachable:
+                continue
+            
             reachable.add(current)
             step = self.steps.get(current)
-            current = step.next_step if step else None
+            if not step:
+                continue
+            
+            # Add next_step if it exists
+            if step.next_step:
+                to_visit.append(step.next_step)
+            
+            # Add parallel steps if they exist
+            step_type = step.type or 'agent'
+            if step_type == 'parallel' and step.parallel_steps:
+                to_visit.extend(step.parallel_steps)
+            
+            # Add conditional branches if they exist
+            if step_type == 'conditional':
+                if step.if_true_step:
+                    to_visit.append(step.if_true_step)
+                if step.if_false_step:
+                    to_visit.append(step.if_false_step)
         
         # Check if any steps are unreachable
         unreachable = set(self.steps.keys()) - reachable
@@ -240,13 +315,34 @@ class WorkflowUpdate(BaseModel):
             return
         
         reachable = set()
-        current = self.start_step
+        to_visit = [self.start_step]
         
-        # Follow the chain from start_step
-        while current and current not in reachable:
+        # BFS to find all reachable steps
+        while to_visit:
+            current = to_visit.pop(0)
+            if current in reachable:
+                continue
+            
             reachable.add(current)
             step = self.steps.get(current)
-            current = step.next_step if step else None
+            if not step:
+                continue
+            
+            # Add next_step if it exists
+            if step.next_step:
+                to_visit.append(step.next_step)
+            
+            # Add parallel steps if they exist
+            step_type = step.type or 'agent'
+            if step_type == 'parallel' and step.parallel_steps:
+                to_visit.extend(step.parallel_steps)
+            
+            # Add conditional branches if they exist
+            if step_type == 'conditional':
+                if step.if_true_step:
+                    to_visit.append(step.if_true_step)
+                if step.if_false_step:
+                    to_visit.append(step.if_false_step)
         
         # Check if any steps are unreachable
         unreachable = set(self.steps.keys()) - reachable

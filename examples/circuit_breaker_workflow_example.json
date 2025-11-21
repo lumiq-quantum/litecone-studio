@@ -1,0 +1,43 @@
+{
+  "workflow_id": "data-processing-with-circuit-breaker",
+  "name": "Data Processing with Circuit Breaker Protection",
+  "description": "Example workflow demonstrating circuit breaker protection for unreliable external services",
+  "start_step": "fetch-data",
+  "steps": {
+    "fetch-data": {
+      "id": "fetch-data",
+      "agent_name": "DataFetcherAgent",
+      "input_mapping": {
+        "source": "${workflow.input.data_source}",
+        "query": "${workflow.input.query}"
+      },
+      "next_step": "validate-data"
+    },
+    "validate-data": {
+      "id": "validate-data",
+      "agent_name": "ValidationAgent",
+      "input_mapping": {
+        "data": "${fetch-data.output.data}",
+        "schema": "${workflow.input.validation_schema}"
+      },
+      "next_step": "process-data"
+    },
+    "process-data": {
+      "id": "process-data",
+      "agent_name": "UnreliableProcessorAgent",
+      "input_mapping": {
+        "data": "${validate-data.output.validated_data}",
+        "options": "${workflow.input.processing_options}"
+      },
+      "next_step": "store-results"
+    },
+    "store-results": {
+      "id": "store-results",
+      "agent_name": "StorageAgent",
+      "input_mapping": {
+        "processed_data": "${process-data.output.result}",
+        "destination": "${workflow.input.destination}"
+      }
+    }
+  }
+}

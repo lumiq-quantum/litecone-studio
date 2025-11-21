@@ -1,6 +1,6 @@
 import { memo } from 'react';
 import { Handle, Position, type NodeProps } from 'reactflow';
-import { Bot, CheckCircle2, XCircle, Clock, Loader2 } from 'lucide-react';
+import { Bot, CheckCircle2, XCircle, Clock, Loader2, GitBranch, GitMerge, RotateCw, GitFork } from 'lucide-react';
 import * as Tooltip from '@radix-ui/react-tooltip';
 import { cn } from '@/lib/utils';
 
@@ -12,10 +12,14 @@ export interface WorkflowStepNodeData {
   hasOutput: boolean;
   inputMapping?: Record<string, unknown>;
   error?: string;
+  isParallel?: boolean; // Whether this is a parallel block
+  isConditional?: boolean; // Whether this is a conditional step
+  isLoop?: boolean; // Whether this is a loop step
+  isForkJoin?: boolean; // Whether this is a fork-join step
 }
 
 function WorkflowStepNode({ data, selected }: NodeProps<WorkflowStepNodeData>) {
-  const { stepId, agentName, status, hasInput, hasOutput, inputMapping, error } = data;
+  const { stepId, agentName, status, hasInput, hasOutput, inputMapping, error, isParallel, isConditional, isLoop, isForkJoin } = data;
 
   // Determine node styling based on status
   const getNodeStyles = () => {
@@ -130,13 +134,29 @@ function WorkflowStepNode({ data, selected }: NodeProps<WorkflowStepNodeData>) {
             {/* Node Content */}
             <div className="flex items-start gap-2">
               <div className={cn('flex-shrink-0 mt-0.5', styles.icon)}>
-                <Bot className="w-5 h-5" />
+                {isParallel ? (
+                  <GitBranch className="w-5 h-5 text-purple-600" />
+                ) : isConditional ? (
+                  <GitMerge className="w-5 h-5 text-amber-600" />
+                ) : isLoop ? (
+                  <RotateCw className="w-5 h-5 text-orange-600" />
+                ) : isForkJoin ? (
+                  <GitFork className="w-5 h-5 text-indigo-600" />
+                ) : (
+                  <Bot className="w-5 h-5" />
+                )}
               </div>
               <div className="flex-1 min-w-0">
                 <div className={cn('text-sm font-semibold truncate', styles.text)}>
                   {stepId}
                 </div>
-                <div className="text-xs text-gray-600 truncate mt-0.5">{agentName}</div>
+                <div className="text-xs text-gray-600 truncate mt-0.5">
+                  {isParallel && <span className="text-purple-600 font-medium">⚡ </span>}
+                  {isConditional && <span className="text-amber-600 font-medium">? </span>}
+                  {isLoop && <span className="text-orange-600 font-medium">↻ </span>}
+                  {isForkJoin && <span className="text-indigo-600 font-medium">⑂ </span>}
+                  {agentName}
+                </div>
               </div>
               {status && <div className="flex-shrink-0">{getStatusIcon()}</div>}
             </div>

@@ -116,12 +116,7 @@ class WorkflowService:
                 "version": str(version),
                 "start_step": workflow_data.start_step,
                 "steps": {
-                    step_id: {
-                        "id": step.id,
-                        "agent_name": step.agent_name,
-                        "next_step": step.next_step,
-                        "input_mapping": step.input_mapping
-                    }
+                    step_id: step.model_dump(exclude_none=False)
                     for step_id, step in workflow_data.steps.items()
                 }
             },
@@ -170,8 +165,12 @@ class WorkflowService:
         Requirements:
         - 8.5: Validates agent references before saving workflow
         """
-        # Extract unique agent names from steps
-        agent_names = {step.agent_name for step in steps.values()}
+        # Extract unique agent names from steps (only for agent-type steps)
+        agent_names = {
+            step.agent_name 
+            for step in steps.values() 
+            if step.agent_name is not None  # Skip steps without agent_name (e.g., conditional, parallel)
+        }
         
         # Validate each agent
         for agent_name in agent_names:

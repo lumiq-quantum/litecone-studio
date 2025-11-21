@@ -164,6 +164,53 @@ export default function ExecutionGraph({
     const stepChildren = new Map<string, string[]>();
 
     Object.entries(workflowSteps).forEach(([stepId, step]) => {
+      const stepType = step.type || 'agent';
+
+      // Handle parallel steps
+      if (stepType === 'parallel' && step.parallel_steps) {
+        // Add edges from parallel block to each parallel step
+        step.parallel_steps.forEach((parallelStepId) => {
+          if (!stepChildren.has(stepId)) {
+            stepChildren.set(stepId, []);
+          }
+          stepChildren.get(stepId)!.push(parallelStepId);
+
+          if (!stepDependencies.has(parallelStepId)) {
+            stepDependencies.set(parallelStepId, []);
+          }
+          stepDependencies.get(parallelStepId)!.push(stepId);
+        });
+      }
+
+      // Handle conditional steps
+      if (stepType === 'conditional') {
+        // Add edges for both branches
+        if (step.if_true_step) {
+          if (!stepChildren.has(stepId)) {
+            stepChildren.set(stepId, []);
+          }
+          stepChildren.get(stepId)!.push(step.if_true_step);
+
+          if (!stepDependencies.has(step.if_true_step)) {
+            stepDependencies.set(step.if_true_step, []);
+          }
+          stepDependencies.get(step.if_true_step)!.push(stepId);
+        }
+
+        if (step.if_false_step) {
+          if (!stepChildren.has(stepId)) {
+            stepChildren.set(stepId, []);
+          }
+          stepChildren.get(stepId)!.push(step.if_false_step);
+
+          if (!stepDependencies.has(step.if_false_step)) {
+            stepDependencies.set(step.if_false_step, []);
+          }
+          stepDependencies.get(step.if_false_step)!.push(stepId);
+        }
+      }
+
+      // Handle next_step for all step types
       if (step.next_step) {
         if (!stepChildren.has(stepId)) {
           stepChildren.set(stepId, []);
@@ -219,7 +266,22 @@ export default function ExecutionGraph({
 
       const execution = stepExecutionMap.get(stepId);
       const hasInput = stepId !== workflow.start_step;
-      const hasOutput = step.next_step !== null;
+      const stepType = step.type || 'agent';
+      const hasOutput = Boolean(
+        step.next_step !== null || 
+        (stepType === 'parallel' && step.parallel_steps) ||
+        (stepType === 'conditional' && (step.if_true_step || step.if_false_step))
+      );
+
+      // Determine display name based on step type
+      let displayName = '';
+      if (stepType === 'parallel') {
+        displayName = `Parallel (${step.parallel_steps?.length || 0})`;
+      } else if (stepType === 'conditional') {
+        displayName = step.condition?.expression || 'Condition';
+      } else {
+        displayName = step.agent_name || '';
+      }
 
       nodes.push({
         id: stepId,
@@ -228,7 +290,7 @@ export default function ExecutionGraph({
         data: {
           stepId,
           stepName: execution?.step_name || stepId,
-          agentName: step.agent_name,
+          agentName: displayName,
           status: execution?.status || 'PENDING',
           hasInput,
           hasOutput,
@@ -237,7 +299,82 @@ export default function ExecutionGraph({
         selected: stepId === selectedStepId,
       });
 
-      // Create edges
+      // Create edges for parallel steps
+      if (stepType === 'parallel' && step.parallel_steps) {
+        const sourceExecution = stepExecutionMap.get(stepId);
+        const status = sourceExecution?.status;
+
+        step.parallel_steps.forEach((parallelStepId) => {
+          edges.push({
+            id: `${stepId}-${parallelStepId}`,
+            source: stepId,
+            target: parallelStepId,
+            type: 'smoothstep',
+            animated: status === 'RUNNING',
+            style: {
+              stroke: '#8b5cf6', // Purple for parallel edges
+              strokeWidth: 2,
+              strokeDasharray: '5,5', // Dashed line for parallel
+            },
+            markerEnd: {
+              type: MarkerType.ArrowClosed,
+              color: '#8b5cf6',
+            },
+          });
+        });
+      }
+
+      // Create edges for conditional steps
+      if (stepType === 'conditional') {
+        const sourceExecution = stepExecutionMap.get(stepId);
+        const status = sourceExecution?.status;
+
+        // True branch edge
+        if (step.if_true_step) {
+          edges.push({
+            id: `${stepId}-true-${step.if_true_step}`,
+            source: stepId,
+            target: step.if_true_step,
+            type: 'smoothstep',
+            label: 'true',
+            labelStyle: { fill: '#10b981', fontWeight: 600, fontSize: 12 },
+            labelBgStyle: { fill: '#f0fdf4' },
+            animated: status === 'RUNNING',
+            style: {
+              stroke: '#10b981', // Green for true branch
+              strokeWidth: 2,
+            },
+            markerEnd: {
+              type: MarkerType.ArrowClosed,
+              color: '#10b981',
+            },
+          });
+        }
+
+        // False branch edge
+        if (step.if_false_step) {
+          edges.push({
+            id: `${stepId}-false-${step.if_false_step}`,
+            source: stepId,
+            target: step.if_false_step,
+            type: 'smoothstep',
+            label: 'false',
+            labelStyle: { fill: '#ef4444', fontWeight: 600, fontSize: 12 },
+            labelBgStyle: { fill: '#fef2f2' },
+            animated: status === 'RUNNING',
+            style: {
+              stroke: '#ef4444', // Red for false branch
+              strokeWidth: 2,
+            },
+            markerEnd: {
+              type: MarkerType.ArrowClosed,
+              color: '#ef4444',
+            },
+          });
+        }
+      }
+
+      // Create edges for next_step (regular sequential flow)
       if (step.next_step) {
         const sourceExecution = stepExecutionMap.get(stepId);
         const status = sourceExecution?.status;

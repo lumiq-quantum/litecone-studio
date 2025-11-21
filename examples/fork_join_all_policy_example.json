@@ -1,0 +1,68 @@
+{
+  "name": "Multi-Provider Data Aggregation",
+  "version": "1.0",
+  "start_step": "fork-join-fetch",
+  "steps": {
+    "fork-join-fetch": {
+      "id": "fork-join-fetch",
+      "type": "fork_join",
+      "fork_join_config": {
+        "branches": {
+          "weather_api": {
+            "steps": ["fetch-weather"],
+            "timeout_seconds": 30
+          },
+          "news_api": {
+            "steps": ["fetch-news"],
+            "timeout_seconds": 30
+          },
+          "stock_api": {
+            "steps": ["fetch-stocks"],
+            "timeout_seconds": 30
+          }
+        },
+        "join_policy": "all",
+        "branch_timeout_seconds": 60
+      },
+      "next_step": "aggregate-data"
+    },
+    "fetch-weather": {
+      "id": "fetch-weather",
+      "type": "agent",
+      "agent_name": "WeatherAgent",
+      "input_mapping": {
+        "location": "${workflow.input.location}"
+      },
+      "next_step": null
+    },
+    "fetch-news": {
+      "id": "fetch-news",
+      "type": "agent",
+      "agent_name": "NewsAgent",
+      "input_mapping": {
+        "topic": "${workflow.input.topic}"
+      },
+      "next_step": null
+    },
+    "fetch-stocks": {
+      "id": "fetch-stocks",
+      "type": "agent",
+      "agent_name": "StockAgent",
+      "input_mapping": {
+        "symbols": "${workflow.input.stock_symbols}"
+      },
+      "next_step": null
+    },
+    "aggregate-data": {
+      "id": "aggregate-data",
+      "type": "agent",
+      "agent_name": "AggregatorAgent",
+      "input_mapping": {
+        "weather": "${fork-join-fetch.output.weather_api}",
+        "news": "${fork-join-fetch.output.news_api}",
+        "stocks": "${fork-join-fetch.output.stock_api}"
+      },
+      "next_step": null
+    }
+  }
+}

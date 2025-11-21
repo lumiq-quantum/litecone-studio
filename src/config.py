@@ -156,6 +156,68 @@ class ExecutorConfig(BaseSettings):
     )
 
 
+class RedisConfig(BaseSettings):
+    """Redis-related configuration for circuit breaker and caching."""
+    
+    url: str = Field(
+        default="redis://localhost:6379/0",
+        description="Redis connection URL",
+        validation_alias="REDIS_URL"
+    )
+    ttl_seconds: int = Field(
+        default=3600,
+        description="Default TTL for cache entries in seconds",
+        validation_alias="REDIS_TTL_SECONDS"
+    )
+    
+    model_config = SettingsConfigDict(
+        env_prefix="",
+        case_sensitive=False,
+        extra="ignore"
+    )
+
+
+class CircuitBreakerConfig(BaseSettings):
+    """Circuit breaker default configuration."""
+    
+    enabled: bool = Field(
+        default=True,
+        description="Enable circuit breaker globally",
+        validation_alias="CIRCUIT_BREAKER_ENABLED"
+    )
+    failure_threshold: int = Field(
+        default=5,
+        description="Number of consecutive failures before opening circuit",
+        validation_alias="CIRCUIT_BREAKER_FAILURE_THRESHOLD"
+    )
+    failure_rate_threshold: float = Field(
+        default=0.5,
+        description="Failure rate (0.0-1.0) threshold for opening circuit",
+        validation_alias="CIRCUIT_BREAKER_FAILURE_RATE_THRESHOLD"
+    )
+    timeout_seconds: int = Field(
+        default=60,
+        description="Time to keep circuit open before attempting reset",
+        validation_alias="CIRCUIT_BREAKER_TIMEOUT_SECONDS"
+    )
+    half_open_max_calls: int = Field(
+        default=3,
+        description="Maximum test calls allowed in half-open state",
+        validation_alias="CIRCUIT_BREAKER_HALF_OPEN_MAX_CALLS"
+    )
+    window_size_seconds: int = Field(
+        default=120,
+        description="Sliding window size for failure rate calculation",
+        validation_alias="CIRCUIT_BREAKER_WINDOW_SIZE_SECONDS"
+    )
+    
+    model_config = SettingsConfigDict(
+        env_prefix="",
+        case_sensitive=False,
+        extra="ignore"
+    )
+
+
 class BridgeConfig(BaseSettings):
     """External Agent Executor (Bridge)-specific configuration."""
     
@@ -280,6 +342,8 @@ class Config(BaseSettings):
     agent_registry: AgentRegistryConfig
     executor: ExecutorConfig = Field(default_factory=ExecutorConfig)
     bridge: BridgeConfig = Field(default_factory=BridgeConfig)
+    redis: RedisConfig = Field(default_factory=RedisConfig)
+    circuit_breaker: CircuitBreakerConfig = Field(default_factory=CircuitBreakerConfig)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
     
     model_config = SettingsConfigDict(
@@ -308,6 +372,10 @@ class Config(BaseSettings):
             kwargs["executor"] = ExecutorConfig()
         if "bridge" not in kwargs:
             kwargs["bridge"] = BridgeConfig()
+        if "redis" not in kwargs:
+            kwargs["redis"] = RedisConfig()
+        if "circuit_breaker" not in kwargs:
+            kwargs["circuit_breaker"] = CircuitBreakerConfig()
         if "logging" not in kwargs:
             kwargs["logging"] = LoggingConfig()
         

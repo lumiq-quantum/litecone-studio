@@ -53,10 +53,16 @@ class StepExecution(Base):
     completed_at = Column(DateTime, nullable=True)
     error_message = Column(Text, nullable=True)
     
+    # Parallel execution tracking
+    parent_step_id = Column(String(255), nullable=True)  # For parallel/fork-join steps
+    branch_name = Column(String(255), nullable=True)  # Branch name for fork-join
+    join_policy = Column(String(50), nullable=True)  # Join policy for fork-join
+    
     # Relationship to workflow run
     workflow_run = relationship("WorkflowRun", back_populates="step_executions")
     
     __table_args__ = (
         Index('idx_step_run_id', 'run_id'),
         Index('idx_step_status', 'status'),
+        Index('idx_step_branch', 'run_id', 'parent_step_id', 'branch_name'),
     )

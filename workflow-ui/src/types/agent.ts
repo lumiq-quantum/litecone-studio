@@ -13,6 +13,18 @@ export interface RetryConfig {
 }
 
 /**
+ * Circuit breaker configuration for agent resilience
+ */
+export interface CircuitBreakerConfig {
+  enabled: boolean;
+  failure_threshold: number;
+  failure_rate_threshold: number;
+  timeout_seconds: number;
+  half_open_max_calls: number;
+  window_size_seconds: number;
+}
+
+/**
  * Agent authentication types
  */
 export type AuthType = 'none' | 'bearer' | 'apikey';
@@ -53,6 +65,7 @@ export interface AgentCreate {
   auth_config?: AuthConfig;
   timeout_ms?: number;
   retry_config?: RetryConfig;
+  circuit_breaker_config?: CircuitBreakerConfig;
 }
 
 /**
@@ -65,6 +78,7 @@ export interface AgentUpdate {
   auth_config?: AuthConfig;
   timeout_ms?: number;
   retry_config?: RetryConfig;
+  circuit_breaker_config?: CircuitBreakerConfig;
   status?: AgentStatus;
 }
 
@@ -80,6 +94,7 @@ export interface AgentResponse {
   auth_config?: AuthConfig;
   timeout_ms: number;
   retry_config: RetryConfig;
+  circuit_breaker_config?: CircuitBreakerConfig;
   status: AgentStatus;
   created_at: string;
   updated_at: string;

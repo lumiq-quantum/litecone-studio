@@ -25,6 +25,12 @@ interface FormData {
   initial_delay_ms: string;
   max_delay_ms: string;
   backoff_multiplier: string;
+  circuit_breaker_enabled: boolean;
+  circuit_breaker_failure_threshold: string;
+  circuit_breaker_failure_rate_threshold: string;
+  circuit_breaker_timeout_seconds: string;
+  circuit_breaker_half_open_max_calls: string;
+  circuit_breaker_window_size_seconds: string;
 }
 
 interface FormErrors {
@@ -53,6 +59,12 @@ export default function AgentForm({
     initial_delay_ms: '1000',
     max_delay_ms: '10000',
     backoff_multiplier: '2',
+    circuit_breaker_enabled: true,
+    circuit_breaker_failure_threshold: '5',
+    circuit_breaker_failure_rate_threshold: '0.5',
+    circuit_breaker_timeout_seconds: '60',
+    circuit_breaker_half_open_max_calls: '3',
+    circuit_breaker_window_size_seconds: '120',
   });
 
   const [errors, setErrors] = useState<FormErrors>({});
@@ -82,6 +94,12 @@ export default function AgentForm({
         initial_delay_ms: agent.retry_config.initial_delay_ms.toString(),
         max_delay_ms: agent.retry_config.max_delay_ms.toString(),
         backoff_multiplier: agent.retry_config.backoff_multiplier.toString(),
+        circuit_breaker_enabled: agent.circuit_breaker_config?.enabled ?? true,
+        circuit_breaker_failure_threshold: agent.circuit_breaker_config?.failure_threshold?.toString() ?? '5',
+        circuit_breaker_failure_rate_threshold: agent.circuit_breaker_config?.failure_rate_threshold?.toString() ?? '0.5',
+        circuit_breaker_timeout_seconds: agent.circuit_breaker_config?.timeout_seconds?.toString() ?? '60',
+        circuit_breaker_half_open_max_calls: agent.circuit_breaker_config?.half_open_max_calls?.toString() ?? '3',
+        circuit_breaker_window_size_seconds: agent.circuit_breaker_config?.window_size_seconds?.toString() ?? '120',
       });
     }
   }, [agent]);
@@ -141,6 +159,34 @@ export default function AgentForm({
       newErrors.backoff_multiplier = 'Backoff multiplier must be a positive number';
     }
 
+    // Circuit breaker validation (only if enabled)
+    if (formData.circuit_breaker_enabled) {
+      const failureThreshold = parseInt(formData.circuit_breaker_failure_threshold);
+      if (isNaN(failureThreshold) || failureThreshold <= 0) {
+        newErrors.circuit_breaker_failure_threshold = 'Failure threshold must be a positive number';
+      }
+
+      const failureRate = parseFloat(formData.circuit_breaker_failure_rate_threshold);
+      if (isNaN(failureRate) || failureRate <= 0 || failureRate > 1) {
+        newErrors.circuit_breaker_failure_rate_threshold = 'Failure rate must be between 0 and 1';
+      }
+
+      const timeoutSeconds = parseInt(formData.circuit_breaker_timeout_seconds);
+      if (isNaN(timeoutSeconds) || timeoutSeconds <= 0) {
+        newErrors.circuit_breaker_timeout_seconds = 'Timeout must be a positive number';
+      }
+
+      const halfOpenCalls = parseInt(formData.circuit_breaker_half_open_max_calls);
+      if (isNaN(halfOpenCalls) || halfOpenCalls <= 0) {
+        newErrors.circuit_breaker_half_open_max_calls = 'Half-open max calls must be a positive number';
+      }
+
+      const windowSize = parseInt(formData.circuit_breaker_window_size_seconds);
+      if (isNaN(windowSize) || windowSize <= 0) {
+        newErrors.circuit_breaker_window_size_seconds = 'Window size must be a positive number';
+      }
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -169,6 +215,14 @@ export default function AgentForm({
         max_delay_ms: parseInt(formData.max_delay_ms),
         backoff_multiplier: parseFloat(formData.backoff_multiplier),
       },
+      circuit_breaker_config: {
+        enabled: formData.circuit_breaker_enabled,
+        failure_threshold: parseInt(formData.circuit_breaker_failure_threshold),
+        failure_rate_threshold: parseFloat(formData.circuit_breaker_failure_rate_threshold),
+        timeout_seconds: parseInt(formData.circuit_breaker_timeout_seconds),
+        half_open_max_calls: parseInt(formData.circuit_breaker_half_open_max_calls),
+        window_size_seconds: parseInt(formData.circuit_breaker_window_size_seconds),
+      },
     };
 
     const submitData = isEditMode
@@ -178,8 +232,11 @@ export default function AgentForm({
     await onSubmit(submitData);
   };
 
-  const handleChange = (field: keyof FormData, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
+  const handleChange = (field: keyof FormData, value: string | boolean) => {
+    setFormData((prev) => ({ 
+      ...prev, 
+      [field]: field === 'circuit_breaker_enabled' ? value === 'true' || value === true : value 
+    }));
     // Clear error for this field
     if (errors[field]) {
       setErrors((prev) => {
@@ -522,6 +579,155 @@ export default function AgentForm({
                         )}
                       </div>
                     </div>
+                  </div>
+
+                  {/* Circuit Breaker Configuration */}
+                  <div>
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-sm font-semibold text-gray-900">Circuit Breaker</h3>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={formData.circuit_breaker_enabled}
+                          onChange={(e) => handleChange('circuit_breaker_enabled', e.target.checked.toString())}
+                          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-gray-700">Enabled</span>
+                      </label>
+                    </div>
+                    
+                    {formData.circuit_breaker_enabled && (
+                      <div className="space-y-4 pl-4 border-l-2 border-blue-200">
+                        <p className="text-xs text-gray-600">
+                          Circuit breaker prevents cascading failures by automatically stopping calls to failing agents.
+                        </p>
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label htmlFor="circuit_breaker_failure_threshold" className="block text-sm font-medium text-gray-700 mb-1">
+                              Failure Threshold
+                            </label>
+                            <input
+                              id="circuit_breaker_failure_threshold"
+                              type="number"
+                              value={formData.circuit_breaker_failure_threshold}
+                              onChange={(e) => handleChange('circuit_breaker_failure_threshold', e.target.value)}
+                              className={cn(
+                                'w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500',
+                                errors.circuit_breaker_failure_threshold ? 'border-red-500' : 'border-gray-300'
+                              )}
+                              placeholder="5"
+                            />
+                            {errors.circuit_breaker_failure_threshold && (
+                              <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
+                                <AlertCircle className="w-4 h-4" />
+                                {errors.circuit_breaker_failure_threshold}
+                              </p>
+                            )}
+                            <p className="mt-1 text-xs text-gray-500">Consecutive failures before opening</p>
+                          </div>
+
+                          <div>
+                            <label htmlFor="circuit_breaker_failure_rate_threshold" className="block text-sm font-medium text-gray-700 mb-1">
+                              Failure Rate Threshold
+                            </label>
+                            <input
+                              id="circuit_breaker_failure_rate_threshold"
+                              type="number"
+                              step="0.1"
+                              min="0"
+                              max="1"
+                              value={formData.circuit_breaker_failure_rate_threshold}
+                              onChange={(e) => handleChange('circuit_breaker_failure_rate_threshold', e.target.value)}
+                              className={cn(
+                                'w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500',
+                                errors.circuit_breaker_failure_rate_threshold ? 'border-red-500' : 'border-gray-300'
+                              )}
+                              placeholder="0.5"
+                            />
+                            {errors.circuit_breaker_failure_rate_threshold && (
+                              <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
+                                <AlertCircle className="w-4 h-4" />
+                                {errors.circuit_breaker_failure_rate_threshold}
+                              </p>
+                            )}
+                            <p className="mt-1 text-xs text-gray-500">Rate (0.0-1.0) to trigger opening</p>
+                          </div>
+
+                          <div>
+                            <label htmlFor="circuit_breaker_timeout_seconds" className="block text-sm font-medium text-gray-700 mb-1">
+                              Timeout (seconds)
+                            </label>
+                            <input
+                              id="circuit_breaker_timeout_seconds"
+                              type="number"
+                              value={formData.circuit_breaker_timeout_seconds}
+                              onChange={(e) => handleChange('circuit_breaker_timeout_seconds', e.target.value)}
+                              className={cn(
+                                'w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500',
+                                errors.circuit_breaker_timeout_seconds ? 'border-red-500' : 'border-gray-300'
+                              )}
+                              placeholder="60"
+                            />
+                            {errors.circuit_breaker_timeout_seconds && (
+                              <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
+                                <AlertCircle className="w-4 h-4" />
+                                {errors.circuit_breaker_timeout_seconds}
+                              </p>
+                            )}
+                            <p className="mt-1 text-xs text-gray-500">Time circuit stays open</p>
+                          </div>
+
+                          <div>
+                            <label htmlFor="circuit_breaker_half_open_max_calls" className="block text-sm font-medium text-gray-700 mb-1">
+                              Half-Open Max Calls
+                            </label>
+                            <input
+                              id="circuit_breaker_half_open_max_calls"
+                              type="number"
+                              value={formData.circuit_breaker_half_open_max_calls}
+                              onChange={(e) => handleChange('circuit_breaker_half_open_max_calls', e.target.value)}
+                              className={cn(
+                                'w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500',
+                                errors.circuit_breaker_half_open_max_calls ? 'border-red-500' : 'border-gray-300'
+                              )}
+                              placeholder="3"
+                            />
+                            {errors.circuit_breaker_half_open_max_calls && (
+                              <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
+                                <AlertCircle className="w-4 h-4" />
+                                {errors.circuit_breaker_half_open_max_calls}
+                              </p>
+                            )}
+                            <p className="mt-1 text-xs text-gray-500">Test calls during recovery</p>
+                          </div>
+
+                          <div className="col-span-2">
+                            <label htmlFor="circuit_breaker_window_size_seconds" className="block text-sm font-medium text-gray-700 mb-1">
+                              Window Size (seconds)
+                            </label>
+                            <input
+                              id="circuit_breaker_window_size_seconds"
+                              type="number"
+                              value={formData.circuit_breaker_window_size_seconds}
+                              onChange={(e) => handleChange('circuit_breaker_window_size_seconds', e.target.value)}
+                              className={cn(
+                                'w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500',
+                                errors.circuit_breaker_window_size_seconds ? 'border-red-500' : 'border-gray-300'
+                              )}
+                              placeholder="120"
+                            />
+                            {errors.circuit_breaker_window_size_seconds && (
+                              <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
+                                <AlertCircle className="w-4 h-4" />
+                                {errors.circuit_breaker_window_size_seconds}
+                              </p>
+                            )}
+                            <p className="mt-1 text-xs text-gray-500">Sliding window for failure rate calculation</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </form>

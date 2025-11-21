@@ -6,6 +6,7 @@ Multi-agent orchestration platform components for executing workflows through as
 
 - **Centralized Executor**: Ephemeral orchestrator that manages workflow execution
 - **External Agent Executor (HTTP-Kafka Bridge)**: Adapter service translating Kafka events to JSON-RPC 2.0 HTTP calls
+- **Parallel Executor**: Concurrent step execution with configurable parallelism limits
 
 ## Project Structure
 
@@ -122,12 +123,66 @@ Run the logging example to see structured logging in action:
 PYTHONPATH=. python3 examples/logging_example.py
 ```
 
+## Features
+
+### Parallel Execution
+Execute multiple workflow steps concurrently with configurable parallelism limits. See [docs/parallel_execution.md](docs/parallel_execution.md) for details.
+
+- Concurrent execution using asyncio
+- Configurable max parallelism
+- Result aggregation from all parallel steps
+- Partial failure handling
+
+### Conditional Logic
+Make dynamic decisions in workflows based on runtime data. See [docs/conditional_logic.md](docs/conditional_logic.md) for details.
+
+- Comparison operators (==, !=, >, <, >=, <=)
+- Logical operators (and, or, not)
+- Membership tests (in, not in, contains)
+- JSONPath support for nested data access
+- Branch execution based on conditions
+
+### Loop Execution
+Iterate over collections with sequential or parallel execution. See [docs/loop_execution.md](docs/loop_execution.md) for details.
+
+- Sequential and parallel execution modes
+- Configurable parallelism limits
+- Error handling policies (stop, continue, collect)
+- Iteration context variables (item, index, total)
+- Maximum iteration limits
+
+### Fork-Join Pattern
+Split execution into multiple named parallel branches with configurable join policies. See [docs/fork_join_pattern.md](docs/fork_join_pattern.md) for details.
+
+- Named parallel branches with sequential steps
+- Multiple join policies (ALL, ANY, MAJORITY, N_OF_M)
+- Per-branch and global timeout configuration
+- Branch result aggregation by name
+- Complex parallel processing patterns
+
+### Circuit Breaker
+Prevent cascading failures with automatic circuit breaker pattern. See [docs/circuit_breaker.md](docs/circuit_breaker.md) and [usage guide](examples/CIRCUIT_BREAKER_USAGE_GUIDE.md) for details.
+
+- Three-state circuit breaker (CLOSED, OPEN, HALF_OPEN)
+- Dual threshold detection (consecutive failures and failure rate)
+- Automatic recovery testing
+- Distributed state management via Redis
+- Per-agent configuration overrides
+- Comprehensive monitoring and logging
+- **Transparent to workflows** - Configure at agent level, works automatically
+
 ## Documentation
 
 ### Core Documentation
 - **[Workflow JSON Format](WORKFLOW_FORMAT.md)** - Complete specification for defining workflows
 - **[A2A Agent Interface](A2A_AGENT_INTERFACE.md)** - JSON-RPC 2.0 protocol specification for implementing agents
 - **[Logging Guide](src/utils/logging_README.md)** - Structured logging and observability
+- **[Parallel Execution](docs/parallel_execution.md)** - Concurrent step execution guide
+- **[Conditional Logic](docs/conditional_logic.md)** - Dynamic workflow branching guide
+- **[Loop Execution](docs/loop_execution.md)** - Iterate over collections guide
+- **[Fork-Join Pattern](docs/fork_join_pattern.md)** - Advanced parallel branching guide
+- **[Circuit Breaker](docs/circuit_breaker.md)** - Resilience pattern for failing agents
+- **[Circuit Breaker Deployment](CIRCUIT_BREAKER_DEPLOYMENT.md)** - Deployment and configuration guide
 
 ### API Documentation
 - **[API Documentation](API_DOCUMENTATION.md)** - Comprehensive REST API documentation
@@ -144,6 +199,8 @@ PYTHONPATH=. python3 examples/logging_example.py
 - **[Manual Testing Guide](MANUAL_TESTING_GUIDE.md)** - Step-by-step testing scenarios
 - **[Testing Architecture](TESTING_ARCHITECTURE.md)** - How mock agents work
 - **[Examples README](examples/README.md)** - Testing tools and example workflows
+- **[Circuit Breaker Usage Guide](examples/CIRCUIT_BREAKER_USAGE_GUIDE.md)** - How to use circuit breaker with workflows
+- **[Circuit Breaker Testing](CIRCUIT_BREAKER_TEST_QUICK_START.md)** - Test circuit breaker functionality
 
 ## Development
 

@@ -215,5 +215,8 @@ def log_event(
         message: Human-readable message
         **kwargs: Additional fields to include in the log entry
     """
+    # Extract exc_info if present (it's a reserved logging parameter)
+    exc_info = kwargs.pop('exc_info', False)
+    
     log_func = getattr(logger, level.lower(), logger.info)
-    log_func(message, extra={'event_type': event_type, **kwargs})
+    log_func(message, extra={'event_type': event_type, **kwargs}, exc_info=exc_info)

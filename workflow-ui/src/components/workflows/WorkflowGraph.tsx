@@ -52,6 +52,87 @@ export default function WorkflowGraph({
     const stepChildren = new Map<string, string[]>();
 
     Object.entries(steps).forEach(([stepId, step]) => {
+      const stepType = step.type || 'agent';
+
+      // Handle parallel steps
+      if (stepType === 'parallel' && step.parallel_steps) {
+        // Add edges from parallel block to each parallel step
+        step.parallel_steps.forEach((parallelStepId) => {
+          if (!stepChildren.has(stepId)) {
+            stepChildren.set(stepId, []);
+          }
+          stepChildren.get(stepId)!.push(parallelStepId);
+
+          if (!stepDependencies.has(parallelStepId)) {
+            stepDependencies.set(parallelStepId, []);
+          }
+          stepDependencies.get(parallelStepId)!.push(stepId);
+        });
+      }
+
+      // Handle conditional steps
+      if (stepType === 'conditional') {
+        // Add edges for both branches
+        if (step.if_true_step) {
+          if (!stepChildren.has(stepId)) {
+            stepChildren.set(stepId, []);
+          }
+          stepChildren.get(stepId)!.push(step.if_true_step);
+
+          if (!stepDependencies.has(step.if_true_step)) {
+            stepDependencies.set(step.if_true_step, []);
+          }
+          stepDependencies.get(step.if_true_step)!.push(stepId);
+        }
+
+        if (step.if_false_step) {
+          if (!stepChildren.has(stepId)) {
+            stepChildren.set(stepId, []);
+          }
+          stepChildren.get(stepId)!.push(step.if_false_step);
+
+          if (!stepDependencies.has(step.if_false_step)) {
+            stepDependencies.set(step.if_false_step, []);
+          }
+          stepDependencies.get(step.if_false_step)!.push(stepId);
+        }
+      }
+
+      // Handle loop steps
+      if (stepType === 'loop' && step.loop_config?.loop_body) {
+        // Add edges from loop block to each loop body step
+        step.loop_config.loop_body.forEach((loopStepId) => {
+          if (!stepChildren.has(stepId)) {
+            stepChildren.set(stepId, []);
+          }
+          stepChildren.get(stepId)!.push(loopStepId);
+
+          if (!stepDependencies.has(loopStepId)) {
+            stepDependencies.set(loopStepId, []);
+          }
+          stepDependencies.get(loopStepId)!.push(stepId);
+        });
+      }
+
+      // Handle fork-join steps
+      if (stepType === 'fork_join' && step.fork_join_config?.branches) {
+        // Add edges from fork-join block to each branch's steps
+        Object.values(step.fork_join_config.branches).forEach((branch) => {
+          branch.steps.forEach((branchStepId) => {
+            if (!stepChildren.has(stepId)) {
+              stepChildren.set(stepId, []);
+            }
+            stepChildren.get(stepId)!.push(branchStepId);
+
+            if (!stepDependencies.has(branchStepId)) {
+              stepDependencies.set(branchStepId, []);
+            }
+            stepDependencies.get(branchStepId)!.push(stepId);
+          });
+        });
+      }
+
+      // Handle next_step for all step types
       if (step.next_step) {
         if (!stepChildren.has(stepId)) {
           stepChildren.set(stepId, []);
@@ -106,8 +187,30 @@ export default function WorkflowGraph({
       const x = level * HORIZONTAL_SPACING;
       const y = (indexInLevel - (totalInLevel - 1) / 2) * VERTICAL_SPACING;
 
+      const stepType = step.type || 'agent';
       const hasInput = stepId !== workflow.start_step;
-      const hasOutput = step.next_step !== null;
+      const hasOutput = Boolean(
+        step.next_step !== null || 
+        (stepType === 'parallel' && step.parallel_steps) ||
+        (stepType === 'conditional' && (step.if_true_step || step.if_false_step))
+      );
+
+      // Determine display name based on step type
+      let displayName = '';
+      if (stepType === 'parallel') {
+        displayName = `Parallel (${step.parallel_steps?.length || 0})`;
+      } else if (stepType === 'conditional') {
+        displayName = step.condition?.expression || 'Condition';
+      } else if (stepType === 'loop') {
+        const mode = step.loop_config?.execution_mode || 'sequential';
+        displayName = `Loop (${mode})`;
+      } else if (stepType === 'fork_join') {
+        const branchCount = Object.keys(step.fork_join_config?.branches || {}).length;
+        const policy = step.fork_join_config?.join_policy || 'all';
+        displayName = `Fork-Join (${branchCount} branches, ${policy})`;
+      } else {
+        displayName = step.agent_name || '';
+      }
 
       nodes.push({
         id: stepId,
@@ -115,15 +218,137 @@ export default function WorkflowGraph({
         position: { x, y },
         data: {
           stepId,
-          agentName: step.agent_name,
+          agentName: displayName,
           status: stepStatuses?.[stepId],
           hasInput,
           hasOutput,
           inputMapping: step.input_mapping,
           error: stepErrors?.[stepId],
+          isParallel: stepType === 'parallel' ? true : false,
+          isConditional: stepType === 'conditional' ? true : false,
+          isLoop: stepType === 'loop' ? true : false,
+          isForkJoin: stepType === 'fork_join' ? true : false,
         },
         selected: stepId === selectedStepId,
       });
+
+      // Create edges for parallel steps
+      if (stepType === 'parallel' && step.parallel_steps) {
+        step.parallel_steps.forEach((parallelStepId) => {
+          edges.push({
+            id: `${stepId}-${parallelStepId}`,
+            source: stepId,
+            target: parallelStepId,
+            type: 'smoothstep',
+            animated: stepStatuses?.[stepId] === 'running',
+            style: {
+              stroke: '#8b5cf6', // Purple for parallel edges
+              strokeWidth: 2,
+              strokeDasharray: '5,5', // Dashed line for parallel
+            },
+            markerEnd: {
+              type: MarkerType.ArrowClosed,
+              color: '#8b5cf6',
+            },
+          });
+        });
+      }
+
+      // Create edges for conditional steps
+      if (stepType === 'conditional') {
+        // True branch edge
+        if (step.if_true_step) {
+          edges.push({
+            id: `${stepId}-true-${step.if_true_step}`,
+            source: stepId,
+            target: step.if_true_step,
+            type: 'smoothstep',
+            label: 'true',
+            labelStyle: { fill: '#10b981', fontWeight: 600, fontSize: 12 },
+            labelBgStyle: { fill: '#f0fdf4' },
+            animated: stepStatuses?.[stepId] === 'running',
+            style: {
+              stroke: '#10b981', // Green for true branch
+              strokeWidth: 2,
+            },
+            markerEnd: {
+              type: MarkerType.ArrowClosed,
+              color: '#10b981',
+            },
+          });
+        }
+
+        // False branch edge
+        if (step.if_false_step) {
+          edges.push({
+            id: `${stepId}-false-${step.if_false_step}`,
+            source: stepId,
+            target: step.if_false_step,
+            type: 'smoothstep',
+            label: 'false',
+            labelStyle: { fill: '#ef4444', fontWeight: 600, fontSize: 12 },
+            labelBgStyle: { fill: '#fef2f2' },
+            animated: stepStatuses?.[stepId] === 'running',
+            style: {
+              stroke: '#ef4444', // Red for false branch
+              strokeWidth: 2,
+            },
+            markerEnd: {
+              type: MarkerType.ArrowClosed,
+              color: '#ef4444',
+            },
+          });
+        }
+      }
+
+      // Create edges for loop steps
+      if (stepType === 'loop' && step.loop_config?.loop_body) {
+        step.loop_config.loop_body.forEach((loopStepId) => {
+          edges.push({
+            id: `${stepId}-${loopStepId}`,
+            source: stepId,
+            target: loopStepId,
+            type: 'smoothstep',
+            animated: stepStatuses?.[stepId] === 'running',
+            style: {
+              stroke: '#f59e0b', // Orange for loop edges
+              strokeWidth: 2,
+              strokeDasharray: '8,4', // Dashed line for loop
+            },
+            markerEnd: {
+              type: MarkerType.ArrowClosed,
+              color: '#f59e0b',
+            },
+          });
+        });
+      }
+
+      // Create edges for fork-join steps
+      if (stepType === 'fork_join' && step.fork_join_config?.branches) {
+        Object.entries(step.fork_join_config.branches).forEach(([branchName, branch]) => {
+          branch.steps.forEach((branchStepId, index) => {
+            edges.push({
+              id: `${stepId}-${branchName}-${branchStepId}`,
+              source: stepId,
+              target: branchStepId,
+              type: 'smoothstep',
+              label: index === 0 ? branchName : undefined, // Only label first step in branch
+              labelStyle: { fill: '#6366f1', fontWeight: 600, fontSize: 11 },
+              labelBgStyle: { fill: '#eef2ff' },
+              animated: stepStatuses?.[stepId] === 'running',
+              style: {
+                stroke: '#6366f1', // Indigo for fork-join edges
+                strokeWidth: 2,
+                strokeDasharray: '6,3', // Dashed line for fork-join
+              },
+              markerEnd: {
+                type: MarkerType.ArrowClosed,
+                color: '#6366f1',
+              },
+            });
+          });
+        });
+      }
 
       // Create edge if there's a next step
       if (step.next_step) {

@@ -1,0 +1,65 @@
+{
+  "name": "Redundant Service Call with Failover",
+  "version": "1.0",
+  "start_step": "fork-join-redundant",
+  "steps": {
+    "fork-join-redundant": {
+      "id": "fork-join-redundant",
+      "type": "fork_join",
+      "fork_join_config": {
+        "branches": {
+          "primary_service": {
+            "steps": ["call-primary"],
+            "timeout_seconds": 10
+          },
+          "backup_service_1": {
+            "steps": ["call-backup-1"],
+            "timeout_seconds": 15
+          },
+          "backup_service_2": {
+            "steps": ["call-backup-2"],
+            "timeout_seconds": 15
+          }
+        },
+        "join_policy": "any"
+      },
+      "next_step": "process-result"
+    },
+    "call-primary": {
+      "id": "call-primary",
+      "type": "agent",
+      "agent_name": "PrimaryServiceAgent",
+      "input_mapping": {
+        "request": "${workflow.input.request_data}"
+      },
+      "next_step": null
+    },
+    "call-backup-1": {
+      "id": "call-backup-1",
+      "type": "agent",
+      "agent_name": "BackupService1Agent",
+      "input_mapping": {
+        "request": "${workflow.input.request_data}"
+      },
+      "next_step": null
+    },
+    "call-backup-2": {
+      "id": "call-backup-2",
+      "type": "agent",
+      "agent_name": "BackupService2Agent",
+      "input_mapping": {
+        "request": "${workflow.input.request_data}"
+      },
+      "next_step": null
+    },
+    "process-result": {
+      "id": "process-result",
+      "type": "agent",
+      "agent_name": "ResultProcessorAgent",
+      "input_mapping": {
+        "all_results": "${fork-join-redundant.output}"
+      },
+      "next_step": null
+    }
+  }
+}

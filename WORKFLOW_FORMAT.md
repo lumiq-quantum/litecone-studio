@@ -38,20 +38,26 @@ A workflow is defined as a JSON document that specifies a sequential flow of age
 ```json
 {
   "id": "string",
+  "type": "agent | parallel",
   "agent_name": "string",
   "next_step": "string | null",
   "input_mapping": {
     "field_name": "string"
-  }
+  },
+  "parallel_steps": ["string"],
+  "max_parallelism": "number"
 }
 ```
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `id` | string | Yes | Unique identifier for this step (must match key in steps map) |
-| `agent_name` | string | Yes | Name of the agent to invoke (must exist in Agent Registry) |
+| `type` | string | No | Step type: `"agent"` (default) or `"parallel"` |
+| `agent_name` | string | Conditional | Name of the agent to invoke (required for type="agent") |
 | `next_step` | string or null | Yes | ID of the next step to execute, or null if this is the final step |
-| `input_mapping` | object | Yes | Map of input field names to value expressions |
+| `input_mapping` | object | Conditional | Map of input field names to value expressions (required for type="agent") |
+| `parallel_steps` | array | Conditional | Array of step IDs to execute in parallel (required for type="parallel") |
+| `max_parallelism` | number | No | Maximum concurrent executions (for type="parallel") |
 
 ## Input Mapping Syntax
 
@@ -433,15 +439,534 @@ If a step fails:
 - Subsequent steps are not executed
 - The failure is persisted to the database for potential retry
 
+## Advanced Features
+
+### Parallel Execution ✅ AVAILABLE
+
+Execute multiple independent steps concurrently for improved performance.
+
+**Step Type**: `parallel`
+
+```json
+{
+  "id": "parallel-block-1",
+  "type": "parallel",
+  "parallel_steps": ["step-a", "step-b", "step-c"],
+  "max_parallelism": 2,
+  "next_step": "next-step"
+}
+```
+
+**Fields**:
+- `type`: Must be `"parallel"`
+- `parallel_steps`: Array of step IDs to execute concurrently
+- `max_parallelism` (optional): Maximum number of concurrent executions
+- `next_step`: Step to execute after all parallel steps complete
+
+**Example**:
+```json
+{
+  "workflow_id": "parallel-example",
+  "name": "Parallel Data Processing",
+  "version": "1.0",
+  "start_step": "parallel-fetch",
+  "steps": {
+    "parallel-fetch": {
+      "id": "parallel-fetch",
+      "type": "parallel",
+      "parallel_steps": ["fetch-api-1", "fetch-api-2", "fetch-api-3"],
+      "max_parallelism": 2,
+      "next_step": "aggregate"
+    },
+    "fetch-api-1": {
+      "id": "fetch-api-1",
+      "type": "agent",
+      "agent_name": "DataFetcher",
+      "input_mapping": {
+        "url": "${workflow.input.api1_url}"
+      },
+      "next_step": null
+    },
+    "fetch-api-2": {
+      "id": "fetch-api-2",
+      "type": "agent",
+      "agent_name": "DataFetcher",
+      "input_mapping": {
+        "url": "${workflow.input.api2_url}"
+      },
+      "next_step": null
+    },
+    "fetch-api-3": {
+      "id": "fetch-api-3",
+      "type": "agent",
+      "agent_name": "DataFetcher",
+      "input_mapping": {
+        "url": "${workflow.input.api3_url}"
+      },
+      "next_step": null
+    },
+    "aggregate": {
+      "id": "aggregate",
+      "type": "agent",
+      "agent_name": "DataAggregator",
+      "input_mapping": {
+        "data1": "${fetch-api-1.output}",
+        "data2": "${fetch-api-2.output}",
+        "data3": "${fetch-api-3.output}"
+      },
+      "next_step": null
+    }
+  }
+}
+```
+
+**Output Aggregation**: Parallel steps' outputs are aggregated and available to subsequent steps using standard step output references.
+
+**Error Handling**: If any parallel step fails, the parallel block is marked as FAILED, but all steps continue executing to completion.
+
+See [docs/parallel_execution.md](docs/parallel_execution.md) for detailed documentation.
+
+### Conditional Execution ✅ AVAILABLE
+
+Execute different steps based on runtime conditions for dynamic workflow branching.
+
+**Step Type**: `conditional`
+
+```json
+{
+  "id": "conditional-step",
+  "type": "conditional",
+  "condition": {
+    "expression": "${step-1.output.score} > 0.8"
+  },
+  "if_true_step": "high-score-handler",
+  "if_false_step": "low-score-handler",
+  "next_step": "final-step"
+}
+```
+
+**Fields**:
+- `type`: Must be `"conditional"`
+- `condition`: Object containing the condition expression
+  - `expression`: The condition to evaluate (required)
+- `if_true_step` (optional): Step ID to execute if condition is true
+- `if_false_step` (optional): Step ID to execute if condition is false
+- `next_step`: Step to execute after the conditional branch completes
+
+**Supported Operators**:
+- Comparison: `==`, `!=`, `>`, `<`, `>=`, `<=`
+- Logical: `and`, `or`, `not`
+- Membership: `in`, `not in`, `contains`
+
+**Example**:
+```json
+{
+  "workflow_id": "conditional-example",
+  "name": "Score-Based Routing",
+  "version": "1.0",
+  "start_step": "analyze",
+  "steps": {
+    "analyze": {
+      "id": "analyze",
+      "type": "agent",
+      "agent_name": "DataAnalyzer",
+      "input_mapping": {
+        "data": "${workflow.input.data}"
+      },
+      "next_step": "check-score"
+    },
+    "check-score": {
+      "id": "check-score",
+      "type": "conditional",
+      "condition": {
+        "expression": "${analyze.output.score} > 0.8"
+      },
+      "if_true_step": "high-quality-process",
+      "if_false_step": "low-quality-process",
+      "next_step": "finalize"
+    },
+    "high-quality-process": {
+      "id": "high-quality-process",
+      "type": "agent",
+      "agent_name": "HighQualityProcessor",
+      "input_mapping": {
+        "data": "${analyze.output.data}"
+      },
+      "next_step": null
+    },
+    "low-quality-process": {
+      "id": "low-quality-process",
+      "type": "agent",
+      "agent_name": "LowQualityProcessor",
+      "input_mapping": {
+        "data": "${analyze.output.data}"
+      },
+      "next_step": null
+    },
+    "finalize": {
+      "id": "finalize",
+      "type": "agent",
+      "agent_name": "Finalizer",
+      "input_mapping": {
+        "result": "${check-score.output.branch_output}"
+      },
+      "next_step": null
+    }
+  }
+}
+```
+
+See [docs/conditional_logic.md](docs/conditional_logic.md) for detailed documentation.
+
+### Loop Execution ✅ AVAILABLE
+
+Iterate over collections of data, executing steps for each item with support for sequential or parallel execution.
+
+**Step Type**: `loop`
+
+```json
+{
+  "id": "loop-step",
+  "type": "loop",
+  "loop_config": {
+    "collection": "${step-1.output.items}",
+    "loop_body": ["process-item"],
+    "execution_mode": "sequential",
+    "max_parallelism": 5,
+    "max_iterations": 100,
+    "on_error": "continue"
+  },
+  "next_step": "aggregate-results"
+}
+```
+
+**Fields**:
+- `type`: Must be `"loop"`
+- `loop_config`: Object containing loop configuration (required)
+  - `collection`: Variable reference to array/list to iterate over (required)
+  - `loop_body`: Array of step IDs to execute for each item (required)
+  - `execution_mode`: `"sequential"` or `"parallel"` (default: `"sequential"`)
+  - `max_parallelism`: Maximum concurrent iterations for parallel mode (optional)
+  - `max_iterations`: Maximum number of items to process (optional)
+  - `on_error`: Error handling policy - `"stop"`, `"continue"`, or `"collect"` (default: `"stop"`)
+- `next_step`: Step to execute after loop completes
+
+**Loop Context Variables**:
+
+Within loop body steps, access iteration context:
+- `${loop.item}`: Current item from collection
+- `${loop.index}`: Current iteration index (0-based)
+- `${loop.total}`: Total number of items
+- `${loop.is_first}`: Boolean, true if first iteration
+- `${loop.is_last}`: Boolean, true if last iteration
+
+**Example - Sequential Loop**:
+
+```json
+{
+  "workflow_id": "sequential-loop-example",
+  "name": "Process Items Sequentially",
+  "version": "1.0",
+  "start_step": "fetch-data",
+  "steps": {
+    "fetch-data": {
+      "id": "fetch-data",
+      "type": "agent",
+      "agent_name": "DataFetcher",
+      "input_mapping": {
+        "source": "${workflow.input.source}"
+      },
+      "next_step": "process-loop"
+    },
+    "process-loop": {
+      "id": "process-loop",
+      "type": "loop",
+      "loop_config": {
+        "collection": "${fetch-data.output.items}",
+        "loop_body": ["process-item"],
+        "execution_mode": "sequential",
+        "on_error": "continue"
+      },
+      "next_step": "aggregate"
+    },
+    "process-item": {
+      "id": "process-item",
+      "type": "agent",
+      "agent_name": "ItemProcessor",
+      "input_mapping": {
+        "item": "${loop.item}",
+        "index": "${loop.index}"
+      },
+      "next_step": null
+    },
+    "aggregate": {
+      "id": "aggregate",
+      "type": "agent",
+      "agent_name": "Aggregator",
+      "input_mapping": {
+        "results": "${process-loop.output.iterations}"
+      },
+      "next_step": null
+    }
+  }
+}
+```
+
+**Example - Parallel Loop**:
+
+```json
+{
+  "process-loop": {
+    "id": "process-loop",
+    "type": "loop",
+    "loop_config": {
+      "collection": "${fetch-data.output.items}",
+      "loop_body": ["process-item"],
+      "execution_mode": "parallel",
+      "max_parallelism": 5,
+      "max_iterations": 100,
+      "on_error": "collect"
+    },
+    "next_step": "aggregate"
+  }
+}
+```
+
+**Error Handling Policies**:
+- `"stop"`: Stop immediately on first error (default)
+- `"continue"`: Continue with remaining iterations, log errors
+- `"collect"`: Complete all iterations, report all errors at end
+
+**Loop Output Format**:
+
+```json
+{
+  "iterations": [
+    { "step_id": "process-item", "status": "COMPLETED", "output_data": {...} },
+    ...
+  ],
+  "total_count": 10,
+  "failed_count": 0
+}
+```
+
+See [docs/loop_execution.md](docs/loop_execution.md) for detailed documentation.
+
+### Fork-Join Pattern ✅ AVAILABLE
+
+Split execution into multiple named parallel branches with configurable join policies for advanced parallel processing patterns.
+
+**Step Type**: `fork_join`
+
+```json
+{
+  "id": "fork-join-step",
+  "type": "fork_join",
+  "fork_join_config": {
+    "branches": {
+      "branch_a": {
+        "steps": ["step-a-1", "step-a-2"],
+        "timeout_seconds": 300
+      },
+      "branch_b": {
+        "steps": ["step-b-1"]
+      }
+    },
+    "join_policy": "all",
+    "n_required": null,
+    "branch_timeout_seconds": 600
+  },
+  "next_step": "aggregate-results"
+}
+```
+
+**Fields**:
+- `type`: Must be `"fork_join"`
+- `fork_join_config`: Object containing fork-join configuration (required)
+  - `branches`: Object with named branches (required, minimum 2)
+    - Each branch has:
+      - `steps`: Array of step IDs to execute sequentially in this branch (required)
+      - `timeout_seconds`: Optional timeout for this specific branch
+  - `join_policy`: Policy for determining when to proceed (default: `"all"`)
+    - `"all"`: All branches must succeed
+    - `"any"`: At least one branch must succeed
+    - `"majority"`: More than 50% of branches must succeed
+    - `"n_of_m"`: At least N branches must succeed (requires `n_required`)
+  - `n_required`: Number of branches required for `"n_of_m"` policy (optional)
+  - `branch_timeout_seconds`: Default timeout for all branches (optional)
+- `next_step`: Step to execute after fork-join completes
+
+**Example - Multi-Provider Data Fetch (ALL Policy)**:
+
+```json
+{
+  "workflow_id": "fork-join-all-example",
+  "name": "Multi-Provider Data Aggregation",
+  "version": "1.0",
+  "start_step": "fork-join-fetch",
+  "steps": {
+    "fork-join-fetch": {
+      "id": "fork-join-fetch",
+      "type": "fork_join",
+      "fork_join_config": {
+        "branches": {
+          "weather_api": {
+            "steps": ["fetch-weather"],
+            "timeout_seconds": 30
+          },
+          "news_api": {
+            "steps": ["fetch-news"],
+            "timeout_seconds": 30
+          },
+          "stock_api": {
+            "steps": ["fetch-stocks"],
+            "timeout_seconds": 30
+          }
+        },
+        "join_policy": "all",
+        "branch_timeout_seconds": 60
+      },
+      "next_step": "aggregate-data"
+    },
+    "fetch-weather": {
+      "id": "fetch-weather",
+      "type": "agent",
+      "agent_name": "WeatherAgent",
+      "input_mapping": {
+        "location": "${workflow.input.location}"
+      },
+      "next_step": null
+    },
+    "fetch-news": {
+      "id": "fetch-news",
+      "type": "agent",
+      "agent_name": "NewsAgent",
+      "input_mapping": {
+        "topic": "${workflow.input.topic}"
+      },
+      "next_step": null
+    },
+    "fetch-stocks": {
+      "id": "fetch-stocks",
+      "type": "agent",
+      "agent_name": "StockAgent",
+      "input_mapping": {
+        "symbols": "${workflow.input.stock_symbols}"
+      },
+      "next_step": null
+    },
+    "aggregate-data": {
+      "id": "aggregate-data",
+      "type": "agent",
+      "agent_name": "AggregatorAgent",
+      "input_mapping": {
+        "weather": "${fork-join-fetch.output.weather_api}",
+        "news": "${fork-join-fetch.output.news_api}",
+        "stocks": "${fork-join-fetch.output.stock_api}"
+      },
+      "next_step": null
+    }
+  }
+}
+```
+
+**Example - Redundant Service Calls (ANY Policy)**:
+
+```json
+{
+  "fork-join-redundant": {
+    "id": "fork-join-redundant",
+    "type": "fork_join",
+    "fork_join_config": {
+      "branches": {
+        "primary_service": {
+          "steps": ["call-primary"],
+          "timeout_seconds": 10
+        },
+        "backup_service_1": {
+          "steps": ["call-backup-1"],
+          "timeout_seconds": 15
+        },
+        "backup_service_2": {
+          "steps": ["call-backup-2"],
+          "timeout_seconds": 15
+        }
+      },
+      "join_policy": "any"
+    },
+    "next_step": "process-result"
+  }
+}
+```
+
+**Example - Multi-Region Deployment (N_OF_M Policy)**:
+
+```json
+{
+  "fork-join-deploy": {
+    "id": "fork-join-deploy",
+    "type": "fork_join",
+    "fork_join_config": {
+      "branches": {
+        "us_east": {
+          "steps": ["deploy-us-east", "verify-us-east"],
+          "timeout_seconds": 300
+        },
+        "us_west": {
+          "steps": ["deploy-us-west", "verify-us-west"],
+          "timeout_seconds": 300
+        },
+        "eu_west": {
+          "steps": ["deploy-eu-west", "verify-eu-west"],
+          "timeout_seconds": 300
+        },
+        "ap_south": {
+          "steps": ["deploy-ap-south", "verify-ap-south"],
+          "timeout_seconds": 300
+        }
+      },
+      "join_policy": "n_of_m",
+      "n_required": 3,
+      "branch_timeout_seconds": 600
+    },
+    "next_step": "finalize-deployment"
+  }
+}
+```
+
+**Fork-Join Output Format**:
+
+Results are aggregated by branch name:
+
+```json
+{
+  "branch_a": {
+    "result": "data from branch A"
+  },
+  "branch_b": {
+    "result": "data from branch B"
+  }
+}
+```
+
+**Join Policy Behavior**:
+- `"all"`: Fails if any branch fails
+- `"any"`: Succeeds if at least one branch succeeds
+- `"majority"`: Succeeds if > 50% of branches succeed
+- `"n_of_m"`: Succeeds if at least N branches succeed
+
+**Error Handling**: The executor waits for all branches to complete before evaluating the join policy, even if some branches fail early.
+
+See [docs/fork_join_pattern.md](docs/fork_join_pattern.md) for detailed documentation.
+
 ## Future Enhancements
 
 Planned features for future versions:
 
-- **Conditional Execution**: `if` conditions on steps
-- **Parallel Execution**: Execute independent steps concurrently
-- **Loops**: Iterate over collections
 - **Sub-workflows**: Nest workflows within steps
 - **Dynamic Step Generation**: Create steps at runtime based on data
+- **Event-Driven Steps**: Wait for external events
+- **State Machines**: Define workflows as state machines
 
 ## Agent Communication Protocol
 

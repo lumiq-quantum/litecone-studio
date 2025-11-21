@@ -1,0 +1,124 @@
+{
+  "name": "Multi-Region Deployment",
+  "version": "1.0",
+  "start_step": "fork-join-deploy",
+  "steps": {
+    "fork-join-deploy": {
+      "id": "fork-join-deploy",
+      "type": "fork_join",
+      "fork_join_config": {
+        "branches": {
+          "us_east": {
+            "steps": ["deploy-us-east", "verify-us-east"],
+            "timeout_seconds": 300
+          },
+          "us_west": {
+            "steps": ["deploy-us-west", "verify-us-west"],
+            "timeout_seconds": 300
+          },
+          "eu_west": {
+            "steps": ["deploy-eu-west", "verify-eu-west"],
+            "timeout_seconds": 300
+          },
+          "ap_south": {
+            "steps": ["deploy-ap-south", "verify-ap-south"],
+            "timeout_seconds": 300
+          }
+        },
+        "join_policy": "n_of_m",
+        "n_required": 3,
+        "branch_timeout_seconds": 600
+      },
+      "next_step": "finalize-deployment"
+    },
+    "deploy-us-east": {
+      "id": "deploy-us-east",
+      "type": "agent",
+      "agent_name": "DeploymentAgent",
+      "input_mapping": {
+        "region": "us-east-1",
+        "artifact": "${workflow.input.artifact_url}"
+      },
+      "next_step": null
+    },
+    "verify-us-east": {
+      "id": "verify-us-east",
+      "type": "agent",
+      "agent_name": "VerificationAgent",
+      "input_mapping": {
+        "region": "us-east-1",
+        "deployment_id": "${deploy-us-east.output.deployment_id}"
+      },
+      "next_step": null
+    },
+    "deploy-us-west": {
+      "id": "deploy-us-west",
+      "type": "agent",
+      "agent_name": "DeploymentAgent",
+      "input_mapping": {
+        "region": "us-west-2",
+        "artifact": "${workflow.input.artifact_url}"
+      },
+      "next_step": null
+    },
+    "verify-us-west": {
+      "id": "verify-us-west",
+      "type": "agent",
+      "agent_name": "VerificationAgent",
+      "input_mapping": {
+        "region": "us-west-2",
+        "deployment_id": "${deploy-us-west.output.deployment_id}"
+      },
+      "next_step": null
+    },
+    "deploy-eu-west": {
+      "id": "deploy-eu-west",
+      "type": "agent",
+      "agent_name": "DeploymentAgent",
+      "input_mapping": {
+        "region": "eu-west-1",
+        "artifact": "${workflow.input.artifact_url}"
+      },
+      "next_step": null
+    },
+    "verify-eu-west": {
+      "id": "verify-eu-west",
+      "type": "agent",
+      "agent_name": "VerificationAgent",
+      "input_mapping": {
+        "region": "eu-west-1",
+        "deployment_id": "${deploy-eu-west.output.deployment_id}"
+      },
+      "next_step": null
+    },
+    "deploy-ap-south": {
+      "id": "deploy-ap-south",
+      "type": "agent",
+      "agent_name": "DeploymentAgent",
+      "input_mapping": {
+        "region": "ap-south-1",
+        "artifact": "${workflow.input.artifact_url}"
+      },
+      "next_step": null
+    },
+    "verify-ap-south": {
+      "id": "verify-ap-south",
+      "type": "agent",
+      "agent_name": "VerificationAgent",
+      "input_mapping": {
+        "region": "ap-south-1",
+        "deployment_id": "${deploy-ap-south.output.deployment_id}"
+      },
+      "next_step": null
+    },
+    "finalize-deployment": {
+      "id": "finalize-deployment",
+      "type": "agent",
+      "agent_name": "DeploymentFinalizerAgent",
+      "input_mapping": {
+        "deployment_results": "${fork-join-deploy.output}"
+      },
+      "next_step": null
+    }
+  }
+}

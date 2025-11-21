@@ -105,7 +105,8 @@ workflow-ui/
 
 - 🎨 Modern, beautiful UI with Tailwind CSS
 - 🔄 Real-time workflow execution monitoring
-- 📊 Visual workflow graphs
+- 📊 Visual workflow graphs with parallel execution support
+- ⚡ Parallel step execution visualization
 - 🚀 Fast development with Vite HMR
 - 💪 Type-safe with TypeScript strict mode
 - ♿ Accessible components with Radix UI
@@ -185,9 +186,12 @@ npm test
 3. **Define Workflow**:
    - Enter workflow name and description
    - Use the JSON editor to define workflow steps
+   - Support for parallel execution (set `type: "parallel"`)
    - The visual preview updates in real-time
 4. **Validate**: The editor will highlight any syntax or validation errors
 5. **Save**: Click "Save" to create the workflow
+
+**Parallel Execution**: Create workflows with concurrent step execution. See [PARALLEL_EXECUTION_UI.md](PARALLEL_EXECUTION_UI.md) for details.
 
 ### Executing Workflows
 

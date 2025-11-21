@@ -10,16 +10,23 @@ class InputMappingResolver:
     # Regex pattern to match ${workflow.input.field} or ${step-id.output.field}
     VARIABLE_PATTERN = re.compile(r'\$\{([^}]+)\}')
     
-    def __init__(self, workflow_input: Dict[str, Any], step_outputs: Optional[Dict[str, Dict[str, Any]]] = None):
+    def __init__(
+        self,
+        workflow_input: Dict[str, Any],
+        step_outputs: Optional[Dict[str, Dict[str, Any]]] = None,
+        loop_context: Optional[Any] = None
+    ):
         """
         Initialize the input mapping resolver.
         
         Args:
             workflow_input: The initial input data provided to the workflow
             step_outputs: Dictionary mapping step IDs to their output data
+            loop_context: Optional IterationContext for loop variable resolution
         """
         self.workflow_input = workflow_input or {}
         self.step_outputs = step_outputs or {}
+        self.loop_context = loop_context
     
     def resolve(self, input_mapping: Dict[str, str]) -> Dict[str, Any]:
         """
@@ -99,6 +106,37 @@ class InputMappingResolver:
             ValueError: If the variable cannot be resolved
         """
         parts = variable_path.split('.')
+        
+        # Handle loop context variables
+        if parts[0] == "loop":
+            if not self.loop_context:
+                raise ValueError(
+                    f"Cannot resolve '${{{variable_path}}}' in field '{field_name}': "
+                    f"Not in a loop context"
+                )
+            
+            if len(parts) < 2:
+                raise ValueError(
+                    f"Invalid loop variable reference '${{{variable_path}}}' in field '{field_name}'. "
+                    f"Expected format: ${{loop.item}} or ${{loop.index}}"
+                )
+            
+            loop_field = parts[1]
+            if loop_field == "item":
+                return self.loop_context.item
+            elif loop_field == "index":
+                return self.loop_context.index
+            elif loop_field == "total":
+                return self.loop_context.total
+            elif loop_field == "is_first":
+                return self.loop_context.is_first
+            elif loop_field == "is_last":
+                return self.loop_context.is_last
+            else:
+                raise ValueError(
+                    f"Invalid loop field '${{{variable_path}}}' in field '{field_name}'. "
+                    f"Valid fields: item, index, total, is_first, is_last"
+                )
         
         if len(parts) < 3:
             raise ValueError(

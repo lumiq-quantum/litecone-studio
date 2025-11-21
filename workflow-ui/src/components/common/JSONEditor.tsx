@@ -63,9 +63,14 @@ export default function JSONEditor({
                         type: 'string',
                         description: 'Step identifier',
                       },
+                      type: {
+                        type: 'string',
+                        description: 'Step type: agent, parallel, conditional, loop, or fork_join',
+                        enum: ['agent', 'parallel', 'conditional', 'loop', 'fork_join'],
+                      },
                       agent_name: {
                         type: 'string',
-                        description: 'Name of the agent to execute this step',
+                        description: 'Name of the agent to execute this step (required for type=agent)',
                         enum: agentNames.length > 0 ? agentNames : undefined,
                       },
                       next_step: {
@@ -74,10 +79,133 @@ export default function JSONEditor({
                       },
                       input_mapping: {
                         type: 'object',
-                        description: 'Mapping of input data for this step',
+                        description: 'Mapping of input data for this step (required for type=agent)',
+                      },
+                      parallel_steps: {
+                        type: 'array',
+                        description: 'Array of step IDs to execute in parallel (required for type=parallel)',
+                        items: {
+                          type: 'string',
+                        },
+                        minItems: 2,
+                      },
+                      max_parallelism: {
+                        type: 'number',
+                        description: 'Maximum number of concurrent executions (optional for type=parallel)',
+                        minimum: 1,
+                      },
+                      condition: {
+                        type: 'object',
+                        description: 'Condition to evaluate for branching (required for type=conditional)',
+                        properties: {
+                          expression: {
+                            type: 'string',
+                            description: 'The condition expression to evaluate',
+                          },
+                          operator: {
+                            type: 'string',
+                            description: 'Optional simple operator for basic comparisons',
+                          },
+                        },
+                        required: ['expression'],
+                      },
+                      if_true_step: {
+                        type: 'string',
+                        description: 'Step ID to execute if condition is true (optional for type=conditional)',
+                      },
+                      if_false_step: {
+                        type: 'string',
+                        description: 'Step ID to execute if condition is false (optional for type=conditional)',
+                      },
+                      loop_config: {
+                        type: 'object',
+                        description: 'Loop configuration (required for type=loop)',
+                        properties: {
+                          collection: {
+                            type: 'string',
+                            description: 'Variable reference to array/list to iterate over',
+                          },
+                          loop_body: {
+                            type: 'array',
+                            description: 'Step IDs to execute for each item',
+                            items: {
+                              type: 'string',
+                            },
+                            minItems: 1,
+                          },
+                          execution_mode: {
+                            type: 'string',
+                            description: 'Execution mode: sequential or parallel',
+                            enum: ['sequential', 'parallel'],
+                          },
+                          max_parallelism: {
+                            type: 'number',
+                            description: 'Maximum concurrent iterations (for parallel mode)',
+                            minimum: 1,
+                          },
+                          max_iterations: {
+                            type: 'number',
+                            description: 'Maximum number of items to process',
+                            minimum: 1,
+                          },
+                          on_error: {
+                            type: 'string',
+                            description: 'Error handling policy',
+                            enum: ['stop', 'continue', 'collect'],
+                          },
+                        },
+                        required: ['collection', 'loop_body'],
+                      },
+                      fork_join_config: {
+                        type: 'object',
+                        description: 'Fork-join configuration (required for type=fork_join)',
+                        properties: {
+                          branches: {
+                            type: 'object',
+                            description: 'Named branches to execute in parallel',
+                            additionalProperties: {
+                              type: 'object',
+                              properties: {
+                                steps: {
+                                  type: 'array',
+                                  description: 'Step IDs to execute in this branch',
+                                  items: {
+                                    type: 'string',
+                                  },
+                                  minItems: 1,
+                                },
+                                timeout_seconds: {
+                                  type: 'number',
+                                  description: 'Optional timeout for this branch',
+                                  minimum: 1,
+                                },
+                              },
+                              required: ['steps'],
+                            },
+                            minProperties: 2,
+                          },
+                          join_policy: {
+                            type: 'string',
+                            description: 'Policy for determining when to proceed after branches complete',
+                            enum: ['all', 'any', 'majority', 'n_of_m'],
+                          },
+                          n_required: {
+                            type: 'number',
+                            description: 'Number of branches required to succeed (for join_policy=n_of_m)',
+                            minimum: 1,
+                          },
+                          branch_timeout_seconds: {
+                            type: 'number',
+                            description: 'Default timeout for all branches',
+                            minimum: 1,
+                          },
+                        },
+                        required: ['branches'],
                       },
                     },
-                    required: ['id', 'agent_name', 'input_mapping'],
+                    required: ['id'],
+                    // Note: agent_name and input_mapping are conditionally required based on type
+                    // Monaco doesn't support conditional schemas well, so we handle this in custom validation
                   },
                 },
               },
@@ -185,25 +313,221 @@ export default function JSONEditor({
                 errors.push(`Step "${stepId}" is missing required field: id`);
                 isValid = false;
               }
-              if (!step.agent_name) {
-                errors.push(`Step "${stepId}" is missing required field: agent_name`);
-                isValid = false;
-              }
-              if (step.input_mapping === undefined) {
-                errors.push(`Step "${stepId}" is missing required field: input_mapping`);
-                isValid = false;
+
+              const stepType = step.type || 'agent';
+
+              // Validate based on step type
+              if (stepType === 'parallel') {
+                // Parallel step validation
+                if (!step.parallel_steps || !Array.isArray(step.parallel_steps)) {
+                  errors.push(`Parallel step "${stepId}" is missing required field: parallel_steps (array)`);
+                  isValid = false;
+                } else if (step.parallel_steps.length < 2) {
+                  errors.push(`Parallel step "${stepId}" must have at least 2 parallel_steps`);
+                  isValid = false;
+                } else {
+                  // Validate that all parallel_steps exist
+                  step.parallel_steps.forEach((parallelStepId: string) => {
+                    if (!parsed.steps[parallelStepId]) {
+                      errors.push(`Parallel step "${stepId}" references non-existent step: "${parallelStepId}"`);
+                      isValid = false;
+                    }
+                  });
+                }
+
+                // Validate max_parallelism if present
+                if (step.max_parallelism !== undefined) {
+                  if (typeof step.max_parallelism !== 'number' || step.max_parallelism < 1) {
+                    errors.push(`Parallel step "${stepId}" has invalid max_parallelism (must be a number >= 1)`);
+                    isValid = false;
+                  }
+                }
+              } else if (stepType === 'conditional') {
+                // Conditional step validation
+                if (!step.condition || typeof step.condition !== 'object') {
+                  errors.push(`Conditional step "${stepId}" is missing required field: condition (object)`);
+                  isValid = false;
+                } else if (!step.condition.expression) {
+                  errors.push(`Conditional step "${stepId}" condition is missing required field: expression`);
+                  isValid = false;
+                }
+
+                // At least one branch must be specified
+                if (!step.if_true_step && !step.if_false_step) {
+                  errors.push(`Conditional step "${stepId}" must have at least one of if_true_step or if_false_step`);
+                  isValid = false;
+                }
+
+                // Validate branch references if present
+                if (step.if_true_step && !parsed.steps[step.if_true_step]) {
+                  errors.push(`Conditional step "${stepId}" references non-existent if_true_step: "${step.if_true_step}"`);
+                  isValid = false;
+                }
+                if (step.if_false_step && !parsed.steps[step.if_false_step]) {
+                  errors.push(`Conditional step "${stepId}" references non-existent if_false_step: "${step.if_false_step}"`);
+                  isValid = false;
+                }
+              } else if (stepType === 'loop') {
+                // Loop step validation
+                if (!step.loop_config || typeof step.loop_config !== 'object') {
+                  errors.push(`Loop step "${stepId}" is missing required field: loop_config (object)`);
+                  isValid = false;
+                } else {
+                  // Validate collection
+                  if (!step.loop_config.collection) {
+                    errors.push(`Loop step "${stepId}" loop_config is missing required field: collection`);
+                    isValid = false;
+                  }
+
+                  // Validate loop_body
+                  if (!step.loop_config.loop_body || !Array.isArray(step.loop_config.loop_body)) {
+                    errors.push(`Loop step "${stepId}" loop_config is missing required field: loop_body (array)`);
+                    isValid = false;
+                  } else if (step.loop_config.loop_body.length < 1) {
+                    errors.push(`Loop step "${stepId}" loop_body must have at least 1 step`);
+                    isValid = false;
+                  } else {
+                    // Validate that all loop_body steps exist
+                    step.loop_config.loop_body.forEach((loopStepId: string) => {
+                      if (!parsed.steps[loopStepId]) {
+                        errors.push(`Loop step "${stepId}" references non-existent loop_body step: "${loopStepId}"`);
+                        isValid = false;
+                      }
+                    });
+                  }
+
+                  // Validate execution_mode if present
+                  if (step.loop_config.execution_mode !== undefined) {
+                    if (!['sequential', 'parallel'].includes(step.loop_config.execution_mode)) {
+                      errors.push(`Loop step "${stepId}" has invalid execution_mode (must be 'sequential' or 'parallel')`);
+                      isValid = false;
+                    }
+                  }
+
+                  // Validate max_parallelism if present
+                  if (step.loop_config.max_parallelism !== undefined) {
+                    if (typeof step.loop_config.max_parallelism !== 'number' || step.loop_config.max_parallelism < 1) {
+                      errors.push(`Loop step "${stepId}" has invalid max_parallelism (must be a number >= 1)`);
+                      isValid = false;
+                    }
+                  }
+
+                  // Validate max_iterations if present
+                  if (step.loop_config.max_iterations !== undefined) {
+                    if (typeof step.loop_config.max_iterations !== 'number' || step.loop_config.max_iterations < 1) {
+                      errors.push(`Loop step "${stepId}" has invalid max_iterations (must be a number >= 1)`);
+                      isValid = false;
+                    }
+                  }
+
+                  // Validate on_error if present
+                  if (step.loop_config.on_error !== undefined) {
+                    if (!['stop', 'continue', 'collect'].includes(step.loop_config.on_error)) {
+                      errors.push(`Loop step "${stepId}" has invalid on_error (must be 'stop', 'continue', or 'collect')`);
+                      isValid = false;
+                    }
+                  }
+                }
+              } else if (stepType === 'fork_join') {
+                // Fork-join step validation
+                if (!step.fork_join_config || typeof step.fork_join_config !== 'object') {
+                  errors.push(`Fork-join step "${stepId}" is missing required field: fork_join_config (object)`);
+                  isValid = false;
+                } else {
+                  // Validate branches
+                  if (!step.fork_join_config.branches || typeof step.fork_join_config.branches !== 'object') {
+                    errors.push(`Fork-join step "${stepId}" fork_join_config is missing required field: branches (object)`);
+                    isValid = false;
+                  } else {
+                    const branchCount = Object.keys(step.fork_join_config.branches).length;
+                    if (branchCount < 2) {
+                      errors.push(`Fork-join step "${stepId}" must have at least 2 branches`);
+                      isValid = false;
+                    }
+
+                    // Validate each branch
+                    Object.entries(step.fork_join_config.branches).forEach(([branchName, branch]: [string, any]) => {
+                      if (!branch.steps || !Array.isArray(branch.steps)) {
+                        errors.push(`Fork-join step "${stepId}" branch "${branchName}" is missing required field: steps (array)`);
+                        isValid = false;
+                      } else if (branch.steps.length < 1) {
+                        errors.push(`Fork-join step "${stepId}" branch "${branchName}" must have at least 1 step`);
+                        isValid = false;
+                      } else {
+                        // Validate that all branch steps exist
+                        branch.steps.forEach((branchStepId: string) => {
+                          if (!parsed.steps[branchStepId]) {
+                            errors.push(`Fork-join step "${stepId}" branch "${branchName}" references non-existent step: "${branchStepId}"`);
+                            isValid = false;
+                          }
+                        });
+                      }
+
+                      // Validate timeout_seconds if present
+                      if (branch.timeout_seconds !== undefined) {
+                        if (typeof branch.timeout_seconds !== 'number' || branch.timeout_seconds < 1) {
+                          errors.push(`Fork-join step "${stepId}" branch "${branchName}" has invalid timeout_seconds (must be a number >= 1)`);
+                          isValid = false;
+                        }
+                      }
+                    });
+                  }
+
+                  // Validate join_policy if present
+                  if (step.fork_join_config.join_policy !== undefined) {
+                    if (!['all', 'any', 'majority', 'n_of_m'].includes(step.fork_join_config.join_policy)) {
+                      errors.push(`Fork-join step "${stepId}" has invalid join_policy (must be 'all', 'any', 'majority', or 'n_of_m')`);
+                      isValid = false;
+                    }
+
+                    // Validate n_required for n_of_m policy
+                    if (step.fork_join_config.join_policy === 'n_of_m') {
+                      if (step.fork_join_config.n_required === undefined) {
+                        errors.push(`Fork-join step "${stepId}" with join_policy='n_of_m' must specify n_required`);
+                        isValid = false;
+                      } else if (typeof step.fork_join_config.n_required !== 'number' || step.fork_join_config.n_required < 1) {
+                        errors.push(`Fork-join step "${stepId}" has invalid n_required (must be a number >= 1)`);
+                        isValid = false;
+                      } else if (step.fork_join_config.branches) {
+                        const branchCount = Object.keys(step.fork_join_config.branches).length;
+                        if (step.fork_join_config.n_required > branchCount) {
+                          errors.push(`Fork-join step "${stepId}" n_required (${step.fork_join_config.n_required}) cannot be greater than number of branches (${branchCount})`);
+                          isValid = false;
+                        }
+                      }
+                    }
+                  }
+
+                  // Validate branch_timeout_seconds if present
+                  if (step.fork_join_config.branch_timeout_seconds !== undefined) {
+                    if (typeof step.fork_join_config.branch_timeout_seconds !== 'number' || step.fork_join_config.branch_timeout_seconds < 1) {
+                      errors.push(`Fork-join step "${stepId}" has invalid branch_timeout_seconds (must be a number >= 1)`);
+                      isValid = false;
+                    }
+                  }
+                }
+              } else {
+                // Agent step validation (default)
+                if (!step.agent_name) {
+                  errors.push(`Step "${stepId}" is missing required field: agent_name`);
+                  isValid = false;
+                }
+                if (step.input_mapping === undefined) {
+                  errors.push(`Step "${stepId}" is missing required field: input_mapping`);
+                  isValid = false;
+                }
+
+                // Warn if agent name is not in the list
+                if (agentNames.length > 0 && step.agent_name && !agentNames.includes(step.agent_name)) {
+                  errors.push(`Warning: Agent "${step.agent_name}" in step "${stepId}" is not registered`);
+                }
               }
 
-              // Validate next_step reference
+              // Validate next_step reference (applies to all step types)
               if (step.next_step && !parsed.steps[step.next_step]) {
                 errors.push(`Step "${stepId}" references non-existent next_step: "${step.next_step}"`);
                 isValid = false;
               }
-
-            // Warn if agent name is not in the list
-            if (agentNames.length > 0 && step.agent_name && !agentNames.includes(step.agent_name)) {
-              errors.push(`Warning: Agent "${step.agent_name}" in step "${stepId}" is not registered`);
-            }
           });
 
           // Check for circular dependencies

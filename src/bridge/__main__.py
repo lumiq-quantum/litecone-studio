@@ -7,6 +7,7 @@ import signal
 import sys
 
 from src.bridge.external_agent_executor import ExternalAgentExecutor
+from src.bridge.circuit_breaker import CircuitBreakerConfig
 from src.utils.logging import setup_logging, log_event
 
 logger = logging.getLogger(__name__)
@@ -26,22 +27,35 @@ async def main() -> None:
     # Load configuration from environment variables
     kafka_bootstrap_servers = os.getenv('KAFKA_BROKERS', 'localhost:9092')
     agent_registry_url = os.getenv('AGENT_REGISTRY_URL', 'http://localhost:8080')
+    redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
     tasks_topic = os.getenv('TASKS_TOPIC', 'orchestrator.tasks.http')
     results_topic = os.getenv('RESULTS_TOPIC', 'results.topic')
     consumer_group_id = os.getenv('CONSUMER_GROUP_ID', 'external-agent-executor-group')
     http_timeout_seconds = int(os.getenv('HTTP_TIMEOUT_SECONDS', '30'))
     max_retries = int(os.getenv('MAX_RETRIES', '3'))
     
+    # Circuit breaker configuration
+    circuit_breaker_config = CircuitBreakerConfig(
+        enabled=os.getenv('CIRCUIT_BREAKER_ENABLED', 'true').lower() == 'true',
+        failure_threshold=int(os.getenv('CIRCUIT_BREAKER_FAILURE_THRESHOLD', '5')),
+        failure_rate_threshold=float(os.getenv('CIRCUIT_BREAKER_FAILURE_RATE_THRESHOLD', '0.5')),
+        timeout_seconds=int(os.getenv('CIRCUIT_BREAKER_TIMEOUT_SECONDS', '60')),
+        half_open_max_calls=int(os.getenv('CIRCUIT_BREAKER_HALF_OPEN_MAX_CALLS', '3')),
+        window_size_seconds=int(os.getenv('CIRCUIT_BREAKER_WINDOW_SIZE_SECONDS', '120'))
+    )
+    
     log_event(
         logger, 'info', 'bridge_start',
         "Starting External Agent Executor (HTTP-Kafka Bridge)",
         kafka_brokers=kafka_bootstrap_servers,
         agent_registry_url=agent_registry_url,
+        redis_url=redis_url,
         tasks_topic=tasks_topic,
         results_topic=results_topic,
         consumer_group_id=consumer_group_id,
         http_timeout_seconds=http_timeout_seconds,
         max_retries=max_retries,
+        circuit_breaker_enabled=circuit_breaker_config.enabled,
         log_level=log_level,
         log_format=log_format
     )
@@ -50,6 +64,8 @@ async def main() -> None:
     executor = ExternalAgentExecutor(
         kafka_bootstrap_servers=kafka_bootstrap_servers,
         agent_registry_url=agent_registry_url,
+        redis_url=redis_url,
+        circuit_breaker_config=circuit_breaker_config,
         tasks_topic=tasks_topic,
         results_topic=results_topic,
         consumer_group_id=consumer_group_id,

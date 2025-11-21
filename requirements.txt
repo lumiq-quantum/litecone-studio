@@ -12,3 +12,7 @@ asyncio==3.4.3
 # Utilities
 python-dotenv==1.0.0
 pyyaml==6.0.1
+jsonpath-ng==1.6.1
+
+# Redis for circuit breaker and caching
+redis==5.0.1

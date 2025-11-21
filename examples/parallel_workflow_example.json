@@ -1,0 +1,53 @@
+{
+  "workflow_id": "parallel-example",
+  "name": "Parallel Execution Example",
+  "version": "1.0",
+  "start_step": "parallel-block-1",
+  "steps": {
+    "parallel-block-1": {
+      "id": "parallel-block-1",
+      "type": "parallel",
+      "parallel_steps": ["step-a", "step-b", "step-c"],
+      "max_parallelism": 2,
+      "next_step": "final-step"
+    },
+    "step-a": {
+      "id": "step-a",
+      "type": "agent",
+      "agent_name": "TheDiceRoller2",
+      "input_mapping": {
+        "input": "${workflow.input.data}"
+      },
+      "next_step": null
+    },
+    "step-b": {
+      "id": "step-b",
+      "type": "agent",
+      "agent_name": "TheDiceRoller2",
+      "input_mapping": {
+        "input": "${workflow.input.data}"
+      },
+      "next_step": null
+    },
+    "step-c": {
+      "id": "step-c",
+      "type": "agent",
+      "agent_name": "TheDiceRoller2",
+      "input_mapping": {
+        "input": "${workflow.input.data}"
+      },
+      "next_step": null
+    },
+    "final-step": {
+      "id": "final-step",
+      "type": "agent",
+      "agent_name": "TheDiceRoller2",
+      "input_mapping": {
+        "step_a_output": "${step-a.output}",
+        "step_b_output": "${step-b.output}",
+        "step_c_output": "${step-c.output}"
+      },
+      "next_step": null
+    }
+  }
+}
