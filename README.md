@@ -2,6 +2,8 @@
 
 Multi-agent orchestration platform components for executing workflows through asynchronous Kafka communication.
 
+> 📌 **Quick Links:** [Quick Reference](QUICK_REFERENCE.md) | [Documentation Index](docs/README.md) | [Project Structure](PROJECT_STRUCTURE.md)
+
 ## Components
 
 - **Centralized Executor**: Ephemeral orchestrator that manages workflow execution
@@ -12,7 +14,7 @@ Multi-agent orchestration platform components for executing workflows through as
 
 ```
 .
-├── src/
+├── src/                   # Source code
 │   ├── executor/          # Centralized Executor implementation
 │   ├── bridge/            # HTTP-Kafka Bridge implementation
 │   ├── models/            # Data models and schemas
@@ -20,11 +22,23 @@ Multi-agent orchestration platform components for executing workflows through as
 │   ├── kafka_client/      # Kafka producer/consumer wrappers
 │   ├── agent_registry/    # Agent Registry client
 │   └── utils/             # Utility functions (including logging)
-├── examples/              # Example scripts and configurations
+├── api/                   # REST API service
+├── workflow-ui/           # React-based UI
+├── docs/                  # All documentation
+│   ├── api/               # API documentation
+│   ├── deployment/        # Deployment guides
+│   ├── testing/           # Testing documentation
+│   ├── guides/            # User guides
+│   ├── architecture/      # Architecture docs
+│   ├── features/          # Feature documentation
+│   └── ui/                # UI documentation
+├── tests/                 # All test files
+├── scripts/               # Shell scripts and utilities
+├── examples/              # Example workflows and configurations
+├── migrations/            # Database migrations
 ├── docker-compose.yml     # Local development environment
 ├── requirements.txt       # Python dependencies
 └── .env.example          # Configuration template
-
 ```
 
 ## Setup
@@ -113,7 +127,7 @@ Key events logged by the system:
 - `agent_success`: Agent completed successfully
 - `agent_error`: Agent invocation failed
 
-See [src/utils/logging_README.md](src/utils/logging_README.md) for detailed documentation.
+See [docs/guides/logging.md](docs/guides/logging.md) for detailed documentation.
 
 ### Example
 
@@ -173,34 +187,36 @@ Prevent cascading failures with automatic circuit breaker pattern. See [docs/cir
 
 ## Documentation
 
-### Core Documentation
-- **[Workflow JSON Format](WORKFLOW_FORMAT.md)** - Complete specification for defining workflows
-- **[A2A Agent Interface](A2A_AGENT_INTERFACE.md)** - JSON-RPC 2.0 protocol specification for implementing agents
-- **[Logging Guide](src/utils/logging_README.md)** - Structured logging and observability
-- **[Parallel Execution](docs/parallel_execution.md)** - Concurrent step execution guide
-- **[Conditional Logic](docs/conditional_logic.md)** - Dynamic workflow branching guide
-- **[Loop Execution](docs/loop_execution.md)** - Iterate over collections guide
-- **[Fork-Join Pattern](docs/fork_join_pattern.md)** - Advanced parallel branching guide
-- **[Circuit Breaker](docs/circuit_breaker.md)** - Resilience pattern for failing agents
-- **[Circuit Breaker Deployment](CIRCUIT_BREAKER_DEPLOYMENT.md)** - Deployment and configuration guide
+All documentation is now organized in the [`docs/`](docs/) directory. See [docs/README.md](docs/README.md) for the complete documentation index.
 
-### API Documentation
-- **[API Documentation](API_DOCUMENTATION.md)** - Comprehensive REST API documentation
-- **[OpenAPI Specification](openapi.yaml)** - Swagger/OpenAPI 3.0 spec
-- **[Swagger Guide](SWAGGER_GUIDE.md)** - How to use Swagger UI with the API
+### Quick Links
 
-### Migration and Deployment
-- **[Migration Guide](MIGRATION_GUIDE.md)** - Migrate from CLI to API-based workflow execution
-- **[Migration Quick Reference](MIGRATION_QUICK_REFERENCE.md)** - Quick commands for migration
-- **[Migration Scripts](scripts/README.md)** - Automated migration tools
+**Getting Started:**
+- [Quick Start Guide](docs/guides/QUICKSTART.md) - Get started in 2 minutes
+- [Development Guide](docs/guides/DEVELOPMENT.md) - Development setup and workflow
+- [Workflow Format](docs/guides/WORKFLOW_FORMAT.md) - Complete workflow specification
 
-### Examples and Testing
-- **[Quick Start Guide](QUICKSTART.md)** - Get started in 2 minutes
-- **[Manual Testing Guide](MANUAL_TESTING_GUIDE.md)** - Step-by-step testing scenarios
-- **[Testing Architecture](TESTING_ARCHITECTURE.md)** - How mock agents work
-- **[Examples README](examples/README.md)** - Testing tools and example workflows
-- **[Circuit Breaker Usage Guide](examples/CIRCUIT_BREAKER_USAGE_GUIDE.md)** - How to use circuit breaker with workflows
-- **[Circuit Breaker Testing](CIRCUIT_BREAKER_TEST_QUICK_START.md)** - Test circuit breaker functionality
+**Features:**
+- [Parallel Execution](docs/features/parallel_execution.md) - Concurrent step execution
+- [Conditional Logic](docs/features/conditional_logic.md) - Dynamic workflow branching
+- [Loop Execution](docs/features/loop_execution.md) - Iterate over collections
+- [Fork-Join Pattern](docs/features/fork_join_pattern.md) - Advanced parallel branching
+- [Circuit Breaker](docs/features/circuit_breaker.md) - Resilience pattern for failing agents
+
+**API:**
+- [API Documentation](docs/api/API_DOCUMENTATION.md) - Comprehensive REST API docs
+- [A2A Agent Interface](docs/api/A2A_AGENT_INTERFACE.md) - JSON-RPC 2.0 protocol specification
+- [Swagger Guide](docs/api/SWAGGER_GUIDE.md) - Using Swagger UI
+
+**Deployment:**
+- [Deployment Guide](docs/deployment/DEPLOYMENT_GUIDE.md) - Production deployment
+- [Migration Guide](docs/deployment/MIGRATION_GUIDE.md) - Migration procedures
+- [Circuit Breaker Deployment](docs/deployment/CIRCUIT_BREAKER_DEPLOYMENT.md) - Circuit breaker setup
+
+**Testing:**
+- [Testing Architecture](docs/testing/TESTING_ARCHITECTURE.md) - How testing works
+- [Manual Testing Guide](docs/testing/MANUAL_TESTING_GUIDE.md) - Step-by-step testing
+- [Test Files](tests/README.md) - All test files and how to run them
 
 ## Development
 

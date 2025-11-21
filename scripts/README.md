@@ -1,258 +1,85 @@
-# Migration Scripts
+# Scripts
 
-This directory contains scripts to help migrate from CLI-based workflow execution to the API-based Workflow Management system.
+This directory contains all shell scripts and utility scripts for the project.
 
-## Scripts
+## Quick Start Scripts (Root Level)
 
-### 1. migrate_workflows.py
+These remain at the project root for easy access:
+- `quick-start.sh` - Fast setup and test execution
+- `cleanup.sh` - Clean up Docker containers and volumes
 
-Import existing workflow JSON files into the Workflow Management API database.
+## API Management Scripts
 
-**Usage:**
+### Starting/Stopping
+- `start_api.sh` - Start the API server
+- `start.sh` - Start all services
+- `restart-api.sh` - Restart the API server
+- `quick-restart-api.sh` - Quick API restart
+- `check-api-status.sh` - Check API health status
+
+### Deployment
+- `deploy-api.sh` - Deploy API to production
+- `deploy_parallel_execution.sh` - Deploy parallel execution feature
+
+## Database & Migration Scripts
+
+- `run-migrations.sh` - Run database migrations
+- `wait-and-migrate.sh` - Wait for database and run migrations
+- `fix-multiple-heads.sh` - Fix Alembic multiple heads issue
+- `verify_parallel_execution_migration.py` - Verify parallel execution migration
+
+## Testing Scripts
+
+- `test_circuit_breaker_live.sh` - Live circuit breaker testing
+- `test_circuit_breaker_simple.sh` - Simple circuit breaker test
+- `test-step-by-step.sh` - Step-by-step testing guide
+- `run_e2e_test.sh` - Run end-to-end tests
+
+## Workflow Management Scripts
+
+- `migrate_workflows.py` - Migrate workflows to new format
+- `register_agents.py` - Register agents with the system
+
+## UI Scripts
+
+- `ui-build.sh` - Build the UI (formerly workflow-ui/build.sh)
+- `ui-deploy.sh` - Deploy the UI (formerly workflow-ui/deploy.sh)
+
+## Troubleshooting Scripts
+
+- `fix-and-rebuild.sh` - Fix issues and rebuild services
+
+## Configuration
+
+- `agents.yaml.example` - Example agent configuration
+
+## Usage Examples
+
+### Start the system
 ```bash
-python3 scripts/migrate_workflows.py \
-  --workflow-dir examples/ \
-  --api-url http://localhost:8000 \
-  --verbose
+./start.sh
 ```
 
-**Options:**
-- `--workflow-dir`: Directory containing workflow JSON files (required)
-- `--api-url`: API base URL (default: http://localhost:8000)
-- `--api-key`: API key for authentication (optional)
-- `--skip-existing`: Skip workflows that already exist
-- `--dry-run`: Validate workflows without importing
-- `--verbose`: Show detailed output
-
-**Example:**
+### Run migrations
 ```bash
-# Dry run to validate workflows
-python3 scripts/migrate_workflows.py \
-  --workflow-dir examples/ \
-  --dry-run \
-  --verbose
-
-# Import workflows, skipping existing ones
-python3 scripts/migrate_workflows.py \
-  --workflow-dir examples/ \
-  --skip-existing
+./run-migrations.sh
 ```
 
-### 2. register_agents.py
-
-Register agents from a YAML configuration file into the Workflow Management API.
-
-**Usage:**
+### Test circuit breaker
 ```bash
-python3 scripts/register_agents.py \
-  --config scripts/agents.yaml \
-  --api-url http://localhost:8000 \
-  --verbose
+./test_circuit_breaker_simple.sh
 ```
 
-**Options:**
-- `--config`: YAML configuration file with agent definitions (required)
-- `--api-url`: API base URL (default: http://localhost:8000)
-- `--api-key`: API key for authentication (optional)
-- `--skip-existing`: Skip agents that already exist
-- `--verbose`: Show detailed output
-
-**Configuration Format:**
-
-Create a `agents.yaml` file (see `agents.yaml.example`):
-
-```yaml
-agents:
-  - name: ResearchAgent
-    url: http://research-agent:8081
-    description: Research agent
-    auth_type: none
-    timeout_ms: 30000
-    retry_config:
-      max_retries: 3
-      initial_delay_ms: 1000
-      max_delay_ms: 30000
-      backoff_multiplier: 2.0
-```
-
-**Example:**
+### Deploy to production
 ```bash
-# Copy example configuration
-cp scripts/agents.yaml.example scripts/agents.yaml
-
-# Edit agents.yaml with your agent details
-vim scripts/agents.yaml
-
-# Register agents
-python3 scripts/register_agents.py \
-  --config scripts/agents.yaml \
-  --skip-existing
+./deploy-api.sh
 ```
 
-## Dependencies
+## Adding New Scripts
 
-The scripts use dependencies already included in the main requirements file:
-
-```bash
-pip install -r requirements.txt
-```
-
-Required packages:
-- `httpx` - HTTP client for API calls
-- `pyyaml` - YAML configuration parsing
-
-## Migration Workflow
-
-Follow these steps for a complete migration:
-
-### Step 1: Start API Service
-
-```bash
-docker compose --profile api up -d
-```
-
-### Step 2: Register Agents
-
-```bash
-# Create agent configuration
-cp scripts/agents.yaml.example scripts/agents.yaml
-# Edit agents.yaml with your agents
-
-# Register agents
-python3 scripts/register_agents.py \
-  --config scripts/agents.yaml \
-  --verbose
-```
-
-### Step 3: Import Workflows
-
-```bash
-# Validate workflows first
-python3 scripts/migrate_workflows.py \
-  --workflow-dir examples/ \
-  --dry-run \
-  --verbose
-
-# Import workflows
-python3 scripts/migrate_workflows.py \
-  --workflow-dir examples/ \
-  --verbose
-```
-
-### Step 4: Verify Migration
-
-```bash
-# List registered agents
-curl http://localhost:8000/api/v1/agents | jq
-
-# List imported workflows
-curl http://localhost:8000/api/v1/workflows | jq
-```
-
-### Step 5: Test Execution
-
-```bash
-# Get workflow ID
-WORKFLOW_ID=$(curl -s http://localhost:8000/api/v1/workflows | \
-  jq -r '.items[0].id')
-
-# Execute workflow
-curl -X POST http://localhost:8000/api/v1/workflows/$WORKFLOW_ID/execute \
-  -H "Content-Type: application/json" \
-  -d @examples/sample_workflow_input.json | jq
-```
-
-## Troubleshooting
-
-### Script fails with "Cannot connect to API"
-
-**Solution:**
-```bash
-# Check API is running
-docker compose ps api
-
-# Check API health
-curl http://localhost:8000/health
-
-# Start API if needed
-docker compose --profile api up -d
-```
-
-### "Missing agents" error during workflow import
-
-**Solution:**
-```bash
-# Register agents first
-python3 scripts/register_agents.py --config scripts/agents.yaml
-
-# Then import workflows
-python3 scripts/migrate_workflows.py --workflow-dir examples/
-```
-
-### "Agent already exists" error
-
-**Solution:**
-```bash
-# Use --skip-existing flag
-python3 scripts/register_agents.py \
-  --config scripts/agents.yaml \
-  --skip-existing
-```
-
-### Import fails with validation errors
-
-**Solution:**
-```bash
-# Use dry-run to see validation errors
-python3 scripts/migrate_workflows.py \
-  --workflow-dir examples/ \
-  --dry-run \
-  --verbose
-
-# Fix workflow JSON files based on errors
-# Then import again
-```
-
-## Advanced Usage
-
-### Import from Multiple Directories
-
-```bash
-# Import workflows from different directories
-for dir in workflows/prod workflows/dev workflows/test; do
-  python3 scripts/migrate_workflows.py \
-    --workflow-dir $dir \
-    --skip-existing
-done
-```
-
-### Register Agents from Multiple Configs
-
-```bash
-# Register different agent groups
-python3 scripts/register_agents.py --config agents-prod.yaml
-python3 scripts/register_agents.py --config agents-dev.yaml
-```
-
-### Use with Authentication
-
-```bash
-# Set API key
-export API_KEY="your-api-key-here"
-
-# Register agents with authentication
-python3 scripts/register_agents.py \
-  --config scripts/agents.yaml \
-  --api-key $API_KEY
-
-# Import workflows with authentication
-python3 scripts/migrate_workflows.py \
-  --workflow-dir examples/ \
-  --api-key $API_KEY
-```
-
-## See Also
-
-- [Migration Guide](../MIGRATION_GUIDE.md) - Complete migration documentation
-- [API Documentation](../API_DOCUMENTATION.md) - API endpoint reference
-- [Quick Start](../QUICKSTART.md) - Getting started guide
+When adding new scripts:
+1. Place them in this directory
+2. Make them executable: `chmod +x script-name.sh`
+3. Add documentation here
+4. Use clear, descriptive names
+5. Include usage comments at the top of the script
