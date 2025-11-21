@@ -8,8 +8,10 @@ git status
 
 echo ""
 echo "📝 Adding changed files..."
+git add .gitignore
 git add workflow-ui/package.json
 git add workflow-ui/Dockerfile
+git add workflow-ui/src/lib/
 git add .github/workflows/build-and-push-images.yml
 git add docs/
 git add *.md
