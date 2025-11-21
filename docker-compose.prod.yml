@@ -1,89 +1,161 @@
-# Production Docker Compose Override
-# Usage: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
-
 version: '3.8'
 
+# Production docker-compose file using GitHub Container Registry images
+# Version: 0.0.1
+
 services:
-  postgres:
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-workflow_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-CHANGE_IN_PRODUCTION}
-      POSTGRES_DB: ${POSTGRES_DB:-workflow_db}
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-      - ./backups:/backups  # For database backups
-    restart: always
-    deploy:
-      resources:
-        limits:
-          cpus: '2'
-          memory: 4G
-        reservations:
-          cpus: '1'
-          memory: 2G
-
-  kafka:
-    environment:
-      KAFKA_HEAP_OPTS: "-Xmx2G -Xms1G"
-      KAFKA_LOG_RETENTION_HOURS: 168  # 7 days
-      KAFKA_LOG_RETENTION_BYTES: 1073741824  # 1GB per partition
-    restart: always
-    deploy:
-      resources:
-        limits:
-          cpus: '2'
-          memory: 4G
-        reservations:
-          cpus: '1'
-          memory: 2G
-
   api:
+    image: ghcr.io/lumiq-quantum/orchestrator-api:0.0.1
+    container_name: workflow-management-api
+    depends_on:
+      - postgres
+      - kafka
+    ports:
+      - "8000:8000"
     environment:
-      - API_WORKERS=4
-      - API_RELOAD=false
-      - LOG_LEVEL=INFO
-      - LOG_FORMAT=json
-      - DATABASE_POOL_SIZE=20
-      - DATABASE_MAX_OVERFLOW=40
-    restart: always
-    deploy:
-      resources:
-        limits:
-          cpus: '4'
-          memory: 4G
-        reservations:
-          cpus: '1'
-          memory: 1G
-      replicas: 1  # Increase for high availability
-    # Uncomment for production logging
-    # logging:
-    #   driver: "json-file"
-    #   options:
-    #     max-size: "10m"
-    #     max-file: "3"
+      - DATABASE_URL=postgresql://workflow_user:workflow_pass@postgres:5432/workflow_db
+      - KAFKA_BROKERS=kafka:29092
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+    env_file:
+      - .env.api
+    networks:
+      - orchestrator-network
+    restart: unless-stopped
 
   executor:
-    restart: always
-    deploy:
-      resources:
-        limits:
-          cpus: '2'
-          memory: 2G
-        reservations:
-          cpus: '0.5'
-          memory: 512M
+    image: ghcr.io/lumiq-quantum/orchestrator-executor:0.0.1
+    container_name: centralized-executor
+    depends_on:
+      - kafka
+      - postgres
+    environment:
+      - KAFKA_BROKERS=kafka:29092
+      - DATABASE_URL=postgresql://workflow_user:workflow_pass@postgres:5432/workflow_db
+      - AGENT_REGISTRY_URL=http://agent-registry:8080
+    env_file:
+      - .env
+    networks:
+      - orchestrator-network
+    restart: unless-stopped
 
-  execution-consumer:
-    restart: always
-    deploy:
-      resources:
-        limits:
-          cpus: '2'
-          memory: 2G
-        reservations:
-          cpus: '0.5'
-          memory: 512M
+  bridge:
+    image: ghcr.io/lumiq-quantum/orchestrator-bridge:0.0.1
+    container_name: external-agent-executor
+    depends_on:
+      - kafka
+      - redis
+    environment:
+      - KAFKA_BROKERS=kafka:29092
+      - AGENT_REGISTRY_URL=http://agent-registry:8080
+      - REDIS_URL=redis://redis:6379/0
+    env_file:
+      - .env
+    networks:
+      - orchestrator-network
+    restart: unless-stopped
+
+  consumer:
+    image: ghcr.io/lumiq-quantum/orchestrator-consumer:0.0.1
+    container_name: execution-consumer
+    depends_on:
+      - kafka
+      - postgres
+    environment:
+      - KAFKA_BROKERS=kafka:29092
+      - DATABASE_URL=postgresql://workflow_user:workflow_pass@postgres:5432/workflow_db
+      - AGENT_REGISTRY_URL=http://agent-registry:8080
+      - KAFKA_GROUP_ID=execution-consumer-group
+      - KAFKA_EXECUTION_TOPIC=workflow.execution.requests
+      - KAFKA_CANCELLATION_TOPIC=workflow.cancellation.requests
+      - LOG_LEVEL=INFO
+      - LOG_FORMAT=json
+    env_file:
+      - .env
+    networks:
+      - orchestrator-network
+    restart: unless-stopped
+
+  ui:
+    image: ghcr.io/lumiq-quantum/orchestrator-ui:0.0.1
+    container_name: workflow-ui
+    depends_on:
+      - api
+    ports:
+      - "3000:80"
+    environment:
+      - VITE_API_URL=${VITE_API_URL:-http://localhost:8000/api/v1}
+      - VITE_POLLING_INTERVAL=${VITE_POLLING_INTERVAL:-2000}
+      - VITE_APP_NAME=${VITE_APP_NAME:-Workflow Manager}
+    networks:
+      - orchestrator-network
+    restart: unless-stopped
+
+  # Infrastructure services (same as development)
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    hostname: zookeeper
+    container_name: zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - orchestrator-network
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    hostname: kafka
+    container_name: kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+    networks:
+      - orchestrator-network
+
+  postgres:
+    image: postgres:16-alpine
+    hostname: postgres
+    container_name: postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: workflow_user
+      POSTGRES_PASSWORD: workflow_pass
+      POSTGRES_DB: workflow_db
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - orchestrator-network
+
+  redis:
+    image: redis:7-alpine
+    hostname: redis
+    container_name: redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - orchestrator-network
+    command: redis-server --appendonly yes
 
 volumes:
   postgres-data:
-    driver: local
+  redis-data:
+
+networks:
+  orchestrator-network:
+    driver: bridge
