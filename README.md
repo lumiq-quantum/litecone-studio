@@ -233,6 +233,17 @@ Automated Docker image builds are configured via GitHub Actions. Every push to `
 
 **Detailed Guide:** See [docs/deployment/CICD_SETUP.md](docs/deployment/CICD_SETUP.md)
 
+## Deployment & Sizing
+
+**Machine Requirements:**
+- **Development:** 4 CPU, 8 GB RAM, 20 GB SSD (~$100/month)
+- **Production:** 8 CPU, 16 GB RAM, 50 GB SSD (~$250/month)
+- **High Load:** 16+ CPU, 32+ GB RAM, 100+ GB SSD (~$550+/month)
+
+**Quick Reference:** See [MACHINE_SIZING_QUICK_REFERENCE.md](MACHINE_SIZING_QUICK_REFERENCE.md)
+
+**Detailed Guide:** See [docs/deployment/RESOURCE_REQUIREMENTS.md](docs/deployment/RESOURCE_REQUIREMENTS.md)
+
 ## License
 
 MIT
