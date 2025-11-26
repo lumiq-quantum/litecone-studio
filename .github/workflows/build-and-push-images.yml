@@ -449,8 +449,9 @@ jobs:
           COMPOSE_EOF
           
           # Replace placeholders with actual values
-          sed -i "s/\${VERSION}/$VERSION/g" docker-compose.prod.yml
-          sed -i "s/\${IMAGE_PREFIX}/$IMAGE_PREFIX/g" docker-compose.prod.yml
+          # Use | as delimiter to avoid conflicts with / in IMAGE_PREFIX
+          sed -i "s|\${VERSION}|$VERSION|g" docker-compose.prod.yml
+          sed -i "s|\${IMAGE_PREFIX}|$IMAGE_PREFIX|g" docker-compose.prod.yml
 
       - name: Commit updated docker-compose.prod.yml
         run: |
