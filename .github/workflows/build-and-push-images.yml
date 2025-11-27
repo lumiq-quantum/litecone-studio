@@ -417,7 +417,7 @@ jobs:
               ports:
                 - "3000:80"
               environment:
-                - VITE_API_URL=\$${VITE_API_URL:-http://localhost:8000/api/v1}
+                - VITE_API_URL=\$${VITE_API_URL:-http://3.111.65.158:8000/api/v1}
                 - VITE_POLLING_INTERVAL=\$${VITE_POLLING_INTERVAL:-2000}
                 - VITE_APP_NAME=\$${VITE_APP_NAME:-Workflow Manager}
               networks:
