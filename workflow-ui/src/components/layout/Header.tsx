@@ -1,4 +1,5 @@
 import { Menu } from 'lucide-react';
+import { getAppName } from '@/lib/apiConfig';
 
 interface HeaderProps {
   onMenuClick: () => void;
@@ -20,7 +21,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
         {/* Mobile logo */}
         <div className="lg:hidden flex items-center gap-2">
           <span className="text-lg font-bold text-gray-900">
-            {import.meta.env.VITE_APP_NAME || 'Workflow Manager'}
+            {getAppName()}
           </span>
         </div>
 

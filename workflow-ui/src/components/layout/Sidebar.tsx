@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import { LayoutDashboard, Users, Workflow, PlayCircle, HelpCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { getApiBaseUrl, getAppName } from '@/lib/apiConfig';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
@@ -20,7 +21,7 @@ export default function Sidebar() {
             <Workflow className="w-5 h-5 text-white" />
           </div>
           <span className="text-xl font-bold text-gray-900">
-            {import.meta.env.VITE_APP_NAME || 'Workflow Manager'}
+            {getAppName()}
           </span>
         </div>
       </div>
@@ -56,7 +57,7 @@ export default function Sidebar() {
       {/* Footer */}
       <div className="p-4 border-t border-gray-200">
         <div className="text-xs text-gray-500 text-center">
-          <p>API: {import.meta.env.VITE_API_URL}</p>
+          <p>API: {getApiBaseUrl()}</p>
         </div>
       </div>
     </aside>

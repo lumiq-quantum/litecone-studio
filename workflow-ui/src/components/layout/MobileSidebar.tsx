@@ -2,6 +2,7 @@ import { NavLink } from 'react-router-dom';
 import { X, LayoutDashboard, Users, Workflow, PlayCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
+import { getApiBaseUrl, getAppName } from '@/lib/apiConfig';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
@@ -44,7 +45,7 @@ export default function MobileSidebar({ isOpen, onClose }: MobileSidebarProps) {
                   <Workflow className="w-5 h-5 text-white" />
                 </div>
                 <span className="text-lg font-bold text-gray-900">
-                  {import.meta.env.VITE_APP_NAME || 'Workflow Manager'}
+                  {getAppName()}
                 </span>
               </div>
               <button
@@ -88,7 +89,7 @@ export default function MobileSidebar({ isOpen, onClose }: MobileSidebarProps) {
             {/* Footer */}
             <div className="p-4 border-t border-gray-200">
               <div className="text-xs text-gray-500 text-center">
-                <p>API: {import.meta.env.VITE_API_URL}</p>
+                <p>API: {getApiBaseUrl()}</p>
               </div>
             </div>
           </motion.aside>

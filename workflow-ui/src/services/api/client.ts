@@ -3,17 +3,13 @@
  */
 import axios, { AxiosError, type AxiosInstance, type InternalAxiosRequestConfig } from 'axios';
 import type { ApiError } from '@/types';
+import { apiConfig } from '@/lib/apiConfig';
 
 /**
  * Create and configure the Axios client instance
+ * Uses dynamic API URL detection based on current host
  */
-const apiClient: AxiosInstance = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1',
-  timeout: 30000,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
+const apiClient: AxiosInstance = axios.create(apiConfig);
 
 /**
  * Request interceptor for adding authentication and logging

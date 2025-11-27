@@ -223,7 +223,7 @@ services:
     environment:
       - VITE_API_URL=${VITE_API_URL:-http://localhost:8000/api/v1}
       - VITE_POLLING_INTERVAL=${VITE_POLLING_INTERVAL:-2000}
-      - VITE_APP_NAME=${VITE_APP_NAME:-Workflow Manager}
+      - VITE_APP_NAME=${VITE_APP_NAME:-LiteCone Studio}
     networks:
       - orchestrator-network
     restart: unless-stopped
