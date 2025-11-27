@@ -1,0 +1,100 @@
+{
+  "name": "Document Processing Pipeline",
+  "description": "Processes documents: classify, extract, verify, and analyze",
+  "start_step": "step-1-classify-doc1",
+  "steps": {
+    "step-1-classify-doc1": {
+      "id": "step-1-classify-doc1",
+      "type": "agent",
+      "agent_name": "DocumentClassifier",
+      "input_mapping": {
+        "document": "${workflow.input.document1}",
+        "predefined_types": "${workflow.input.document_types}"
+      },
+      "next_step": "step-1-classify-doc2"
+    },
+    "step-1-classify-doc2": {
+      "id": "step-1-classify-doc2",
+      "type": "agent",
+      "agent_name": "DocumentClassifier",
+      "input_mapping": {
+        "document": "${workflow.input.document2}",
+        "predefined_types": "${workflow.input.document_types}"
+      },
+      "next_step": "step-2-extract-parallel"
+    },
+    "step-2-extract-parallel": {
+      "id": "step-2-extract-parallel",
+      "type": "parallel",
+      "parallel_steps": ["step-2-extract-doc1", "step-2-extract-doc2"],
+      "max_parallelism": 10,
+      "next_step": "step-3-collate"
+    },
+    "step-2-extract-doc1": {
+      "id": "step-2-extract-doc1",
+      "type": "agent",
+      "agent_name": "DataExtractor",
+      "input_mapping": {
+        "document": "${workflow.input.document1}",
+        "document_type": "${step-1-classify-doc1.output.document_type}",
+        "extraction_schema": "${workflow.input.extraction_schemas}"
+      },
+      "next_step": null
+    },
+    "step-2-extract-doc2": {
+      "id": "step-2-extract-doc2",
+      "type": "agent",
+      "agent_name": "DataExtractor",
+      "input_mapping": {
+        "document": "${workflow.input.document2}",
+        "document_type": "${step-1-classify-doc2.output.document_type}",
+        "extraction_schema": "${workflow.input.extraction_schemas}"
+      },
+      "next_step": null
+    },
+    "step-3-collate": {
+      "id": "step-3-collate",
+      "type": "agent",
+      "agent_name": "ResultCollator",
+      "input_mapping": {
+        "doc1_data": "${step-2-extract-doc1.output}",
+        "doc2_data": "${step-2-extract-doc2.output}",
+        "doc1_type": "${step-1-classify-doc1.output.document_type}",
+        "doc2_type": "${step-1-classify-doc2.output.document_type}"
+      },
+      "next_step": "step-4-verify"
+    },
+    "step-4-verify": {
+      "id": "step-4-verify",
+      "type": "agent",
+      "agent_name": "DataVerifier",
+      "input_mapping": {
+        "collated_data": "${step-3-collate.output.collated_data}",
+        "verification_rules": "${workflow.input.verification_rules}"
+      },
+      "next_step": "step-5-analyze"
+    },
+    "step-5-analyze": {
+      "id": "step-5-analyze",
+      "type": "agent",
+      "agent_name": "FinalAnalyzer",
+      "input_mapping": {
+        "verified_data": "${step-4-verify.output.verified_data}",
+        "mismatches": "${step-4-verify.output.mismatches}",
+        "doc1_classification": "${step-1-classify-doc1.output}",
+        "doc2_classification": "${step-1-classify-doc2.output}"
+      },
+      "next_step": "step-6-store"
+    },
+    "step-6-store": {
+      "id": "step-6-store",
+      "type": "agent",
+      "agent_name": "ResultStorage",
+      "input_mapping": {
+        "analysis_report": "${step-5-analyze.output.report}",
+        "storage_destination": "${workflow.input.storage_destination}"
+      },
+      "next_step": null
+    }
+  }
+}

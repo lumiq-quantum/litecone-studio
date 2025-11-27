@@ -21,10 +21,20 @@ class ConditionSchema(BaseModel):
         return v
 
 
+class LoopConfigSchema(BaseModel):
+    """Schema for loop configuration."""
+    collection: str = Field(..., description="Reference to collection: ${step-0.output.items}")
+    loop_body: list[str] = Field(..., min_length=1, description="Step IDs to execute for each item")
+    execution_mode: Optional[str] = Field("sequential", description="Execution mode: sequential or parallel")
+    max_parallelism: Optional[int] = Field(None, gt=0, description="Maximum number of concurrent iterations (for parallel mode)")
+    max_iterations: Optional[int] = Field(None, gt=0, description="Maximum number of iterations to process")
+    on_error: Optional[str] = Field("stop", description="Error handling policy: continue, stop, or collect")
+
+
 class WorkflowStepSchema(BaseModel):
     """Schema for a single workflow step definition."""
     id: str = Field(..., min_length=1, max_length=255, description="Unique step identifier")
-    type: Optional[str] = Field("agent", description="Step type: agent, parallel, or conditional")
+    type: Optional[str] = Field("agent", description="Step type: agent, parallel, conditional, or loop")
     agent_name: Optional[str] = Field(None, min_length=1, max_length=255, description="Name of the agent to invoke (required for type=agent)")
     next_step: Optional[str] = Field(None, description="ID of the next step, or null if final step")
     input_mapping: Optional[Dict[str, Any]] = Field(None, description="Map of input field names to value expressions (required for type=agent)")
@@ -37,6 +47,9 @@ class WorkflowStepSchema(BaseModel):
     condition: Optional[ConditionSchema] = Field(None, description="Condition to evaluate for branching (required for type=conditional)")
     if_true_step: Optional[str] = Field(None, description="Step ID to execute if condition is true (optional for type=conditional)")
     if_false_step: Optional[str] = Field(None, description="Step ID to execute if condition is false (optional for type=conditional)")
+    
+    # Loop execution fields
+    loop_config: Optional[LoopConfigSchema] = Field(None, description="Loop configuration (required for type=loop)")
 
     @field_validator('id')
     @classmethod
@@ -55,7 +68,7 @@ class WorkflowStepSchema(BaseModel):
         """Validate step type."""
         if v is None:
             return "agent"
-        allowed_types = {'agent', 'parallel', 'conditional'}
+        allowed_types = {'agent', 'parallel', 'conditional', 'loop'}
         if v not in allowed_types:
             raise ValueError(f"Step type must be one of: {', '.join(allowed_types)}")
         return v
@@ -92,6 +105,10 @@ class WorkflowStepSchema(BaseModel):
                 raise ValueError(f"condition is required for step type 'conditional' (step: {self.id})")
             if not self.if_true_step and not self.if_false_step:
                 raise ValueError(f"At least one of if_true_step or if_false_step must be specified for step type 'conditional' (step: {self.id})")
+        
+        elif step_type == 'loop':
+            if not self.loop_config:
+                raise ValueError(f"loop_config is required for step type 'loop' (step: {self.id})")
         
         return self
 

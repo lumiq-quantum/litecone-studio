@@ -1,0 +1,118 @@
+{
+  "workflow_input": {
+    "documents": [
+      {
+        "id": "doc-001",
+        "content": "Invoice content here...",
+        "source": "s3://bucket/invoices/inv-001.pdf"
+      },
+      {
+        "id": "doc-002",
+        "content": "Receipt content here...",
+        "source": "s3://bucket/receipts/rec-001.pdf"
+      },
+      {
+        "id": "doc-003",
+        "content": "Contract content here...",
+        "source": "s3://bucket/contracts/contract-001.pdf"
+      }
+    ],
+    "document_types": [
+      "invoice",
+      "receipt",
+      "contract",
+      "purchase_order",
+      "delivery_note"
+    ],
+    "extraction_schemas": {
+      "invoice": {
+        "fields": [
+          "invoice_number",
+          "invoice_date",
+          "vendor_name",
+          "total_amount",
+          "tax_amount",
+          "line_items"
+        ]
+      },
+      "receipt": {
+        "fields": [
+          "receipt_number",
+          "date",
+          "merchant_name",
+          "total_amount",
+          "payment_method"
+        ]
+      },
+      "contract": {
+        "fields": [
+          "contract_number",
+          "start_date",
+          "end_date",
+          "parties",
+          "contract_value",
+          "terms"
+        ]
+      },
+      "purchase_order": {
+        "fields": [
+          "po_number",
+          "po_date",
+          "supplier",
+          "total_amount",
+          "items"
+        ]
+      },
+      "delivery_note": {
+        "fields": [
+          "delivery_note_number",
+          "delivery_date",
+          "recipient",
+          "items",
+          "carrier"
+        ]
+      }
+    },
+    "verification_rules": {
+      "cross_document_checks": [
+        {
+          "rule": "invoice_total_matches_receipt",
+          "description": "Verify invoice total matches corresponding receipt"
+        },
+        {
+          "rule": "po_matches_invoice",
+          "description": "Verify purchase order amounts match invoice amounts"
+        },
+        {
+          "rule": "delivery_note_matches_po",
+          "description": "Verify delivery note items match purchase order items"
+        }
+      ],
+      "data_quality_checks": [
+        {
+          "rule": "required_fields_present",
+          "description": "All required fields must be extracted"
+        },
+        {
+          "rule": "date_format_valid",
+          "description": "All dates must be in valid format"
+        },
+        {
+          "rule": "amount_format_valid",
+          "description": "All amounts must be valid numbers"
+        }
+      ]
+    },
+    "storage_destination": {
+      "type": "s3",
+      "bucket": "processed-documents",
+      "path": "analysis-reports/",
+      "format": "json"
+    },
+    "notification_config": {
+      "enabled": true,
+      "recipients": ["admin@example.com"],
+      "notify_on": ["completion", "errors", "mismatches"]
+    }
+  }
+}

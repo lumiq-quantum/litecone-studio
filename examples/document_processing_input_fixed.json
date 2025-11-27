@@ -1,0 +1,54 @@
+{
+  "document1": {
+    "id": "doc-001",
+    "content": "Invoice #12345 from Acme Corp dated 2024-01-15 for $1500.00 including tax $150.00",
+    "source": "invoice-001.pdf"
+  },
+  "document2": {
+    "id": "doc-002",
+    "content": "Receipt #67890 from Acme Corp dated 2024-01-15 for $1500.00 paid by credit card",
+    "source": "receipt-001.pdf"
+  },
+  "document_types": ["invoice", "receipt", "contract", "purchase_order"],
+  "extraction_schemas": {
+    "invoice": {
+      "fields": ["invoice_number", "vendor_name", "date", "total_amount", "tax_amount"]
+    },
+    "receipt": {
+      "fields": ["receipt_number", "merchant_name", "date", "total_amount", "payment_method"]
+    },
+    "contract": {
+      "fields": ["contract_number", "parties", "start_date", "end_date", "value"]
+    },
+    "purchase_order": {
+      "fields": ["po_number", "supplier", "date", "total_amount", "items"]
+    }
+  },
+  "verification_rules": {
+    "cross_document_checks": [
+      {
+        "rule": "invoice_total_matches_receipt",
+        "description": "Verify invoice total matches receipt total"
+      },
+      {
+        "rule": "dates_match",
+        "description": "Verify dates are consistent across documents"
+      }
+    ],
+    "data_quality_checks": [
+      {
+        "rule": "required_fields_present",
+        "description": "All required fields must be extracted"
+      },
+      {
+        "rule": "amount_format_valid",
+        "description": "All amounts must be valid numbers"
+      }
+    ]
+  },
+  "storage_destination": {
+    "type": "local",
+    "path": "/tmp/analysis-results",
+    "format": "json"
+  }
+}

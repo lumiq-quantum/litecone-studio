@@ -1,0 +1,109 @@
+{
+  "workflow_id": "document-processing-pipeline",
+  "name": "Document Processing and Verification Pipeline",
+  "version": "1.0",
+  "description": "Processes multiple documents: classify, extract key-value pairs, cross-verify, and generate final analysis",
+  "start_step": "step-1-classify-documents",
+  "steps": {
+    "step-1-classify-documents": {
+      "id": "step-1-classify-documents",
+      "type": "loop",
+      "description": "Classify each document into predefined types",
+      "loop_config": {
+        "collection": "${workflow.input.documents}",
+        "loop_body": ["step-1-classify-single"],
+        "execution_mode": "parallel",
+        "max_parallelism": 10,
+        "max_iterations": 1000,
+        "on_error": "collect"
+      },
+      "next_step": "step-2-extract-data"
+    },
+    "step-1-classify-single": {
+      "id": "step-1-classify-single",
+      "type": "agent",
+      "agent_name": "DocumentClassifier",
+      "description": "Classifies a single document into predefined types (invoice, receipt, contract, etc.)",
+      "input_mapping": {
+        "document": "${loop.item}",
+        "document_index": "${loop.index}",
+        "predefined_types": "${workflow.input.document_types}"
+      },
+      "next_step": null
+    },
+    "step-2-extract-data": {
+      "id": "step-2-extract-data",
+      "type": "loop",
+      "description": "Extract key-value pairs from each classified document",
+      "loop_config": {
+        "collection": "${step-1-classify-documents.output.iterations}",
+        "loop_body": ["step-2-extract-single"],
+        "execution_mode": "parallel",
+        "max_parallelism": 10,
+        "max_iterations": 1000,
+        "on_error": "collect"
+      },
+      "next_step": "step-3-collate-results"
+    },
+    "step-2-extract-single": {
+      "id": "step-2-extract-single",
+      "type": "agent",
+      "agent_name": "DataExtractor",
+      "description": "Extracts predefined key-value pairs based on document type",
+      "input_mapping": {
+        "document": "${loop.item.input.document}",
+        "document_type": "${loop.item.output.document_type}",
+        "extraction_schema": "${workflow.input.extraction_schemas[loop.item.output.document_type]}",
+        "document_index": "${loop.index}"
+      },
+      "next_step": null
+    },
+    "step-3-collate-results": {
+      "id": "step-3-collate-results",
+      "type": "agent",
+      "agent_name": "ResultCollator",
+      "description": "Collates all extracted data from all documents",
+      "input_mapping": {
+        "extracted_data": "${step-2-extract-data.output.iterations}",
+        "total_documents": "${step-2-extract-data.output.total_count}"
+      },
+      "next_step": "step-4-cross-verify"
+    },
+    "step-4-cross-verify": {
+      "id": "step-4-cross-verify",
+      "type": "agent",
+      "agent_name": "DataVerifier",
+      "description": "Cross-verifies extracted data and identifies mismatches",
+      "input_mapping": {
+        "collated_data": "${step-3-collate-results.output.collated_data}",
+        "verification_rules": "${workflow.input.verification_rules}"
+      },
+      "next_step": "step-5-final-analysis"
+    },
+    "step-5-final-analysis": {
+      "id": "step-5-final-analysis",
+      "type": "agent",
+      "agent_name": "FinalAnalyzer",
+      "description": "Generates final analysis report with all findings",
+      "input_mapping": {
+        "verified_data": "${step-4-cross-verify.output.verified_data}",
+        "mismatches": "${step-4-cross-verify.output.mismatches}",
+        "total_documents": "${step-2-extract-data.output.total_count}",
+        "classification_summary": "${step-1-classify-documents.output.iterations}"
+      },
+      "next_step": "step-6-store-results"
+    },
+    "step-6-store-results": {
+      "id": "step-6-store-results",
+      "type": "agent",
+      "agent_name": "ResultStorage",
+      "description": "Stores or sends the final analysis results",
+      "input_mapping": {
+        "analysis_report": "${step-5-final-analysis.output.report}",
+        "storage_destination": "${workflow.input.storage_destination}",
+        "notification_config": "${workflow.input.notification_config}"
+      },
+      "next_step": null
+    }
+  }
+}
