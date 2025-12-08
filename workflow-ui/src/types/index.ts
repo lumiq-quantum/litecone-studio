@@ -54,3 +54,25 @@ export type {
   StepExecutionListResponse,
   RunFilterParams,
 } from './run';
+
+// AI Workflow types
+export type {
+  MessageRole,
+  ChatSessionStatus,
+  MessageMetadata,
+  Message,
+  ChatSession,
+  WorkflowGenerationResult,
+  UserPreferences,
+  WorkflowGenerateRequest,
+  ChatSessionCreateRequest,
+  ChatMessageSendRequest,
+  WorkflowSaveRequest,
+  WorkflowSaveResponse,
+  AgentSuggestion,
+  AgentSuggestionResult,
+  AgentSuggestRequest,
+  SessionDeleteResponse,
+  AIWorkflowErrorDetails,
+  AIWorkflowError,
+} from './aiWorkflow';

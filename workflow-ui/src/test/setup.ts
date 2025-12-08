@@ -43,3 +43,6 @@ Object.defineProperty(window, 'matchMedia', {
     dispatchEvent: vi.fn(),
   })),
 });
+
+// Mock scrollIntoView for smooth scrolling tests
+Element.prototype.scrollIntoView = vi.fn();

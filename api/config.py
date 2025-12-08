@@ -74,6 +74,10 @@ class Settings(BaseSettings):
     enable_metrics: bool = Field(default=True, validation_alias="ENABLE_METRICS")
     enable_audit_logging: bool = Field(default=True, validation_alias="ENABLE_AUDIT_LOGGING")
     
+    # AI Workflow Generator Settings
+    session_timeout_minutes: int = Field(default=30, validation_alias="SESSION_TIMEOUT_MINUTES")
+    session_cleanup_interval_minutes: int = Field(default=5, validation_alias="SESSION_CLEANUP_INTERVAL_MINUTES")
+    
     model_config = SettingsConfigDict(
         env_file=".env.api",
         env_file_encoding="utf-8",

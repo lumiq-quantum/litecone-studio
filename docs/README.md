@@ -10,11 +10,19 @@ This directory contains all project documentation organized by category.
 - Swagger/OpenAPI documentation
 - Database setup and schema documentation
 
+### `/ai-workflow-generator` - AI Workflow Generator Documentation
+- Natural language workflow generation
+- LLM integration (Gemini)
+- Chat sessions and interactive refinement
+- Agent suggestions and templates
+- Document processing and validation
+
 ### `/deployment` - Deployment Guides
 - Deployment procedures and checklists
 - Migration guides and troubleshooting
 - Environment configuration
 - Service-specific deployment guides (API, UI)
+- Docker compose configuration and machine sizing
 
 ### `/testing` - Testing Documentation
 - Testing architecture and strategies
@@ -32,6 +40,7 @@ This directory contains all project documentation organized by category.
 - System architecture overviews
 - Component-specific architecture (bridge, agent registry)
 - Integration patterns and checklists
+- Project structure and cleanup documentation
 
 ### `/features` - Feature Documentation
 - Core execution patterns (parallel, conditional, loops, fork-join)
@@ -47,6 +56,7 @@ This directory contains all project documentation organized by category.
 ## Quick Links
 
 ### Getting Started
+- [Quick Reference](QUICK_REFERENCE.md) - Fast access to common commands
 - [Quick Start Guide](guides/QUICKSTART.md)
 - [Development Guide](guides/DEVELOPMENT.md)
 - [Workflow Format](guides/WORKFLOW_FORMAT.md)
@@ -56,10 +66,25 @@ This directory contains all project documentation organized by category.
 - [A2A Agent Interface](api/A2A_AGENT_INTERFACE.md)
 - [Swagger Guide](api/SWAGGER_GUIDE.md)
 
+### AI Workflow Generator
+- [AI Workflow Generator Overview](ai-workflow-generator/README.md)
+- [API Documentation](ai-workflow-generator/API_DOCUMENTATION.md)
+- [API Quick Reference](ai-workflow-generator/API_QUICK_REFERENCE.md)
+- [Configuration Guide](ai-workflow-generator/CONFIG_README.md)
+- [Troubleshooting](ai-workflow-generator/TROUBLESHOOTING.md)
+
 ### Deployment
 - [Deployment Guide](deployment/DEPLOYMENT_GUIDE.md)
+- [Deployment Now (Quick Deploy)](deployment/DEPLOYMENT_NOW.md)
 - [Migration Guide](deployment/MIGRATION_GUIDE.md)
-- [Quick Reference](deployment/DEPLOYMENT_QUICK_REFERENCE.md)
+- [Docker Compose Review](deployment/DOCKER_COMPOSE_REVIEW.md)
+- [Machine Sizing Reference](deployment/MACHINE_SIZING_QUICK_REFERENCE.md)
+- [Pre-Push Checklist](deployment/PRE_PUSH_CHECKLIST.md)
+- [UI Build Fix Summary](deployment/UI_BUILD_FIX_SUMMARY.md)
+
+### Architecture
+- [Project Structure](architecture/PROJECT_STRUCTURE.md)
+- [Cleanup Summary](architecture/CLEANUP_SUMMARY.md)
 
 ### Features
 - [Parallel Execution](features/parallel_execution.md)

@@ -95,6 +95,7 @@ async def readiness_check(
     
     This endpoint performs health checks on critical dependencies:
     - Database connectivity
+    - AI Workflow Generator service
     - (Future: Kafka connectivity)
     
     If any critical dependency is unavailable, the endpoint returns 503 Service Unavailable.
@@ -131,6 +132,34 @@ async def readiness_check(
             response_time_ms=None
         )
     
+    # Check AI Workflow Generator service
+    ai_start = time.time()
+    try:
+        from api.services.ai_workflow_generator.config import ai_workflow_config
+        
+        # Verify Gemini API key is configured
+        if not ai_workflow_config.gemini_api_key or ai_workflow_config.gemini_api_key == "your-api-key-here":
+            checks["ai_workflow_generator"] = HealthStatus(
+                status="unhealthy",
+                message="Gemini API key not configured",
+                response_time_ms=None
+            )
+            all_ready = False
+        else:
+            ai_time = (time.time() - ai_start) * 1000
+            checks["ai_workflow_generator"] = HealthStatus(
+                status="healthy",
+                message="AI Workflow Generator service configured",
+                response_time_ms=round(ai_time, 2)
+            )
+    except Exception as e:
+        all_ready = False
+        checks["ai_workflow_generator"] = HealthStatus(
+            status="unhealthy",
+            message=f"AI Workflow Generator service error: {str(e)}",
+            response_time_ms=None
+        )
+    
     # TODO: Add Kafka connectivity check when KafkaService is available
     # For now, we'll add a placeholder that assumes Kafka is healthy
     # This should be implemented in Phase 8 when integrating with the executor
@@ -148,6 +177,109 @@ async def readiness_check(
         ready=all_ready,
         timestamp=datetime.utcnow(),
         checks=checks
+    )
+
+
+@router.get(
+    "/health/ai",
+    response_model=HealthResponse,
+    status_code=status.HTTP_200_OK,
+    summary="AI Workflow Generator health check",
+    description="Returns the health status of the AI Workflow Generator service including "
+                "Gemini API configuration and service availability.",
+    responses={
+        200: {
+            "description": "AI service is healthy",
+            "model": HealthResponse
+        },
+        503: {
+            "description": "AI service is unhealthy",
+            "model": HealthResponse
+        }
+    }
+)
+async def ai_service_health_check(response: Response) -> HealthResponse:
+    """
+    AI Workflow Generator service health check.
+    
+    This endpoint checks the health of the AI Workflow Generator service:
+    - Gemini API key configuration
+    - Service initialization status
+    - Configuration validity
+    
+    Returns:
+        HealthResponse: Health status of the AI service
+    """
+    services: Dict[str, HealthStatus] = {}
+    is_healthy = True
+    
+    # Check Gemini API configuration
+    try:
+        from api.services.ai_workflow_generator.config import ai_workflow_config
+        
+        # Check API key
+        if not ai_workflow_config.gemini_api_key or ai_workflow_config.gemini_api_key == "your-api-key-here":
+            services["gemini_api"] = HealthStatus(
+                status="unhealthy",
+                message="Gemini API key not configured",
+                response_time_ms=None
+            )
+            is_healthy = False
+        else:
+            services["gemini_api"] = HealthStatus(
+                status="healthy",
+                message="Gemini API key configured",
+                response_time_ms=None
+            )
+        
+        # Check agent registry configuration
+        if ai_workflow_config.agent_registry_url:
+            services["agent_registry"] = HealthStatus(
+                status="healthy",
+                message=f"Agent registry URL configured: {ai_workflow_config.agent_registry_url}",
+                response_time_ms=None
+            )
+        else:
+            services["agent_registry"] = HealthStatus(
+                status="unhealthy",
+                message="Agent registry URL not configured",
+                response_time_ms=None
+            )
+            is_healthy = False
+        
+        # Check workflow API configuration
+        if ai_workflow_config.workflow_api_url:
+            services["workflow_api"] = HealthStatus(
+                status="healthy",
+                message=f"Workflow API URL configured: {ai_workflow_config.workflow_api_url}",
+                response_time_ms=None
+            )
+        else:
+            services["workflow_api"] = HealthStatus(
+                status="unhealthy",
+                message="Workflow API URL not configured",
+                response_time_ms=None
+            )
+            is_healthy = False
+            
+    except Exception as e:
+        is_healthy = False
+        services["configuration"] = HealthStatus(
+            status="unhealthy",
+            message=f"Configuration error: {str(e)}",
+            response_time_ms=None
+        )
+    
+    # Set appropriate status code
+    if not is_healthy:
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+    
+    return HealthResponse(
+        status="healthy" if is_healthy else "unhealthy",
+        timestamp=datetime.utcnow(),
+        version=settings.api_version,
+        uptime_seconds=time.time() - _start_time,
+        services=services
     )
 
 

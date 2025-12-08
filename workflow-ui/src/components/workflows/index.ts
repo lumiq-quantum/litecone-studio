@@ -7,3 +7,8 @@ export { default as ExecuteWorkflowDialog } from './ExecuteWorkflowDialog';
 export { default as VersionHistory } from './VersionHistory';
 export { default as VersionCompare } from './VersionCompare';
 export { default as TemplateGallery } from './TemplateGallery';
+export { default as AIGenerateSidebar } from './AIGenerateSidebar';
+export { default as InitialView } from './InitialView';
+export { default as ChatView } from './ChatView';
+export { default as ChangeExplanation } from './ChangeExplanation';
+export { default as WorkflowComparison } from './WorkflowComparison';

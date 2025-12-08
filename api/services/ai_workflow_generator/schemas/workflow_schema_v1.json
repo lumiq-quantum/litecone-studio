@@ -1,0 +1,214 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://workflow-orchestrator.com/schemas/workflow/v1",
+  "title": "Workflow Definition Schema",
+  "description": "JSON Schema for workflow definitions in the orchestration system",
+  "version": "1.0.0",
+  "type": "object",
+  "required": ["name", "start_step", "steps"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255,
+      "description": "Unique workflow name"
+    },
+    "description": {
+      "type": "string",
+      "description": "Workflow description"
+    },
+    "start_step": {
+      "type": "string",
+      "minLength": 1,
+      "description": "ID of the first step to execute"
+    },
+    "steps": {
+      "type": "object",
+      "minProperties": 1,
+      "description": "Map of step IDs to step definitions",
+      "patternProperties": {
+        "^[a-zA-Z0-9_-]+$": {
+          "$ref": "#/definitions/WorkflowStep"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "definitions": {
+    "WorkflowStep": {
+      "type": "object",
+      "required": ["id", "type"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255,
+          "pattern": "^[a-zA-Z0-9_-]+$",
+          "description": "Unique step identifier"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["agent", "parallel", "conditional", "loop"],
+          "default": "agent",
+          "description": "Step type"
+        },
+        "agent_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255,
+          "description": "Name of the agent to invoke (required for type=agent)"
+        },
+        "next_step": {
+          "type": ["string", "null"],
+          "description": "ID of the next step, or null if final step"
+        },
+        "input_mapping": {
+          "type": "object",
+          "description": "Map of input field names to value expressions"
+        },
+        "parallel_steps": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "string"
+          },
+          "description": "List of step IDs to execute in parallel"
+        },
+        "max_parallelism": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Maximum number of concurrent executions"
+        },
+        "condition": {
+          "$ref": "#/definitions/Condition",
+          "description": "Condition to evaluate for branching"
+        },
+        "if_true_step": {
+          "type": ["string", "null"],
+          "description": "Step ID to execute if condition is true"
+        },
+        "if_false_step": {
+          "type": ["string", "null"],
+          "description": "Step ID to execute if condition is false"
+        },
+        "loop_config": {
+          "$ref": "#/definitions/LoopConfig",
+          "description": "Loop configuration"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "agent"
+              }
+            }
+          },
+          "then": {
+            "required": ["agent_name", "input_mapping"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "parallel"
+              }
+            }
+          },
+          "then": {
+            "required": ["parallel_steps"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "conditional"
+              }
+            }
+          },
+          "then": {
+            "required": ["condition"],
+            "anyOf": [
+              {
+                "required": ["if_true_step"]
+              },
+              {
+                "required": ["if_false_step"]
+              }
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "loop"
+              }
+            }
+          },
+          "then": {
+            "required": ["loop_config"]
+          }
+        }
+      ]
+    },
+    "Condition": {
+      "type": "object",
+      "required": ["expression"],
+      "properties": {
+        "expression": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Condition expression to evaluate"
+        },
+        "operator": {
+          "type": "string",
+          "description": "Optional simple operator for basic comparisons"
+        }
+      }
+    },
+    "LoopConfig": {
+      "type": "object",
+      "required": ["collection", "loop_body"],
+      "properties": {
+        "collection": {
+          "type": "string",
+          "description": "Reference to collection"
+        },
+        "loop_body": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          },
+          "description": "Step IDs to execute for each item"
+        },
+        "execution_mode": {
+          "type": "string",
+          "enum": ["sequential", "parallel"],
+          "default": "sequential",
+          "description": "Execution mode"
+        },
+        "max_parallelism": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Maximum number of concurrent iterations"
+        },
+        "max_iterations": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Maximum number of iterations to process"
+        },
+        "on_error": {
+          "type": "string",
+          "enum": ["continue", "stop", "collect"],
+          "default": "stop",
+          "description": "Error handling policy"
+        }
+      }
+    }
+  }
+}
