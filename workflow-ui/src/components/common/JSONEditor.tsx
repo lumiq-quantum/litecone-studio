@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useImperativeHandle, forwardRef } from 'react';
 import Editor, { type OnMount, type OnChange } from '@monaco-editor/react';
 import type { editor } from 'monaco-editor';
 import { AlertCircle } from 'lucide-react';
@@ -14,7 +14,12 @@ interface JSONEditorProps {
   validateSchema?: boolean; // Whether to validate against workflow schema
 }
 
-export default function JSONEditor({
+export interface JSONEditorRef {
+  highlightLines: (lineNumbers: number[], duration?: number) => void;
+  getEditor: () => editor.IStandaloneCodeEditor | null;
+}
+
+const JSONEditor = forwardRef<JSONEditorRef, JSONEditorProps>(({
   value,
   onChange,
   onValidate,
@@ -23,9 +28,49 @@ export default function JSONEditor({
   agentNames = [],
   className = '',
   validateSchema = true, // Default to true for backward compatibility
-}: JSONEditorProps) {
+}, ref) => {
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const validationErrors = useRef<string[]>([]);
+  const decorationsRef = useRef<string[]>([]);
+
+  // Expose methods to parent components
+  useImperativeHandle(ref, () => ({
+    highlightLines: (lineNumbers: number[], duration: number = 2000) => {
+      if (!editorRef.current) return;
+
+      const editor = editorRef.current;
+
+      // Create decorations for highlighted lines
+      const newDecorations = lineNumbers.map(lineNumber => ({
+        range: {
+          startLineNumber: lineNumber,
+          startColumn: 1,
+          endLineNumber: lineNumber,
+          endColumn: 1,
+        },
+        options: {
+          isWholeLine: true,
+          className: 'line-highlight',
+          glyphMarginClassName: 'line-highlight-glyph',
+        },
+      }));
+
+      // Apply decorations
+      const decorationIds = editor.deltaDecorations(decorationsRef.current, newDecorations);
+      decorationsRef.current = decorationIds;
+
+      // Remove highlights after duration
+      if (duration > 0) {
+        setTimeout(() => {
+          if (editorRef.current) {
+            const clearedIds = editorRef.current.deltaDecorations(decorationsRef.current, []);
+            decorationsRef.current = clearedIds;
+          }
+        }, duration);
+      }
+    },
+    getEditor: () => editorRef.current,
+  }));
 
   const handleEditorDidMount: OnMount = (editor, monaco) => {
     editorRef.current = editor;
@@ -618,7 +663,11 @@ export default function JSONEditor({
       />
     </div>
   );
-}
+});
+
+JSONEditor.displayName = 'JSONEditor';
+
+export default JSONEditor;
 
 // Separate component for displaying validation errors
 interface ValidationErrorsProps {

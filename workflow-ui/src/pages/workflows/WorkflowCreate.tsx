@@ -1,14 +1,18 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Save, FileJson, Sparkles } from 'lucide-react';
+import { ArrowLeft, Save, FileJson, Sparkles, GitCompare } from 'lucide-react';
 import { useCreateWorkflow } from '@/hooks/useWorkflows';
 import { useAgents } from '@/hooks/useAgents';
 import { useTutorial } from '@/hooks/useTutorial';
 import { WorkflowVisualEditor, TemplateGallery } from '@/components/workflows';
+import type { WorkflowVisualEditorRef } from '@/components/workflows/WorkflowVisualEditor';
+import AIGenerateSidebar from '@/components/workflows/AIGenerateSidebar';
+import WorkflowComparison from '@/components/workflows/WorkflowComparison';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import OnboardingTutorial from '@/components/common/OnboardingTutorial';
 import { showToast } from '@/lib/toast';
+import { getWorkflowChanges } from '@/lib/jsonDiff';
 import type { WorkflowCreate } from '@/types';
 import type { WorkflowTemplate } from '@/data/workflowTemplates';
 
@@ -79,8 +83,64 @@ export default function WorkflowCreate() {
   const [workflowJson, setWorkflowJson] = useState(JSON.stringify(DEFAULT_WORKFLOW_JSON, null, 2));
   const [isValid, setIsValid] = useState(true);
   const [showTemplateGallery, setShowTemplateGallery] = useState(false);
+  const [showAISidebar, setShowAISidebar] = useState(false);
+  const [lastAIGeneratedJson, setLastAIGeneratedJson] = useState<string | null>(null);
+  const [showComparison, setShowComparison] = useState(false);
+  const [comparisonBeforeJson, setComparisonBeforeJson] = useState<string>('');
+  const [comparisonAfterJson, setComparisonAfterJson] = useState<string>('');
+  const workflowEditorRef = useRef<WorkflowVisualEditorRef>(null);
 
   const agentNames = agentsData?.items?.map((agent) => agent.name) || [];
+
+  /**
+   * Handle workflow update from AI
+   * Requirements: 2.4, 2.5, 4.4, 8.2, 10.1, 10.2, 10.3, 10.4, 10.5
+   */
+  const handleWorkflowUpdate = (json: string, explanation: string) => {
+    // Get comprehensive change information (Requirements 10.1, 10.3, 10.4)
+    const changes = getWorkflowChanges(workflowJson, json);
+    
+    // Store before/after for comparison feature (Requirement 10.5)
+    setComparisonBeforeJson(workflowJson);
+    setComparisonAfterJson(json);
+    
+    // Update the workflow JSON (Requirement 4.4)
+    setWorkflowJson(json);
+    
+    // Track this as AI-generated for manual edit detection (Requirement 8.1)
+    setLastAIGeneratedJson(json);
+    
+    // Highlight changed lines in the editor (Requirement 10.1)
+    if (changes.changedLines.length > 0 && workflowEditorRef.current) {
+      // Small delay to ensure the editor has updated with new content
+      setTimeout(() => {
+        workflowEditorRef.current?.highlightLines(changes.changedLines, 3000);
+      }, 100);
+    }
+    
+    // Display explanation with detailed change summary (Requirements 10.3, 10.4)
+    let toastMessage = explanation;
+    
+    if (changes.hasChanges) {
+      // Add summary of modifications (Requirement 10.4)
+      const modificationSummary = [];
+      if (changes.addedSteps.length > 0) {
+        modificationSummary.push(`${changes.addedSteps.length} step(s) added`);
+      }
+      if (changes.removedSteps.length > 0) {
+        modificationSummary.push(`${changes.removedSteps.length} step(s) removed`);
+      }
+      if (changes.modifiedSteps.length > 0) {
+        modificationSummary.push(`${changes.modifiedSteps.length} step(s) modified`);
+      }
+      
+      if (modificationSummary.length > 0) {
+        toastMessage += `\n\n📝 ${modificationSummary.join(', ')}`;
+      }
+    }
+    
+    showToast.success(toastMessage);
+  };
 
   // Show tutorial on first visit
   useEffect(() => {
@@ -107,20 +167,28 @@ export default function WorkflowCreate() {
     setIsValid(valid);
   };
 
+  /**
+   * Handle workflow save/creation
+   * Requirements: 9.1, 9.2, 9.3, 9.4, 9.5
+   */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Validate workflow name (Requirement 9.2)
     if (!name.trim()) {
       showToast.error('Workflow name is required');
       return;
     }
 
+    // Validate workflow JSON (Requirement 9.2)
     if (!isValid) {
       showToast.error('Please fix validation errors before saving');
       return;
     }
 
     try {
+      // Parse and prepare workflow data
+      // Works with both AI-generated and manually-created workflows (Requirement 9.1)
       const workflowData = JSON.parse(workflowJson);
       
       const payload: WorkflowCreate = {
@@ -130,10 +198,21 @@ export default function WorkflowCreate() {
         steps: workflowData.steps,
       };
 
+      // Save workflow using existing API (Requirement 9.2)
       const newWorkflow = await createMutation.mutateAsync(payload);
+      
+      // Show success message (Requirement 9.4)
       showToast.success('Workflow created successfully');
+      
+      // Navigate to workflow detail page (Requirement 9.3)
+      // Note: The AI sidebar remains open during save and only closes when
+      // navigation occurs. This keeps the session active during the save process,
+      // allowing the user to continue chatting if save fails (Requirement 9.5)
       navigate(`/workflows/${newWorkflow.id}`);
     } catch (error) {
+      // Display save errors in toast notifications (Requirement 9.4)
+      // The AI sidebar remains open, allowing the user to continue refining
+      // the workflow through chat (Requirement 9.5)
       if (error instanceof SyntaxError) {
         showToast.error('Invalid JSON format');
       } else {
@@ -163,18 +242,38 @@ export default function WorkflowCreate() {
             Back to Workflows
           </button>
 
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">Create Workflow</h1>
-              <p className="text-gray-600">Define a new workflow with steps and agents</p>
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1 min-w-0">
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Create Workflow</h1>
+              <p className="text-sm sm:text-base text-gray-600">Define a new workflow with steps and agents</p>
             </div>
-            <button
-              onClick={() => setShowTemplateGallery(true)}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 border border-primary-200 rounded-lg transition-colors"
-            >
-              <Sparkles className="w-4 h-4" />
-              Use Template
-            </button>
+            <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+              {/* Show comparison button if we have before/after data */}
+              {comparisonBeforeJson && comparisonAfterJson && (
+                <button
+                  onClick={() => setShowComparison(true)}
+                  className="hidden sm:flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 border border-gray-300 rounded-lg transition-colors"
+                  title="View before/after comparison"
+                >
+                  <GitCompare className="w-4 h-4" />
+                  <span className="hidden md:inline">Compare Changes</span>
+                </button>
+              )}
+              <button
+                onClick={() => setShowTemplateGallery(true)}
+                className="flex items-center gap-2 px-3 sm:px-4 py-2 text-sm font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 border border-primary-200 rounded-lg transition-colors"
+              >
+                <Sparkles className="w-4 h-4" />
+                <span className="hidden sm:inline">Use Template</span>
+              </button>
+              <button
+                onClick={() => setShowAISidebar(true)}
+                className="flex items-center gap-2 px-3 sm:px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+              >
+                <Sparkles className="w-4 h-4" />
+                <span className="hidden sm:inline">AI Generate</span>
+              </button>
+            </div>
           </div>
         </motion.div>
 
@@ -186,8 +285,10 @@ export default function WorkflowCreate() {
           onSubmit={handleSubmit}
           className="space-y-6"
         >
-          {/* Basic Information Card */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
+          {/* Basic Information Card - Hidden on mobile when AI sidebar is open (Requirement 11.3) */}
+          <div className={`bg-white rounded-xl border border-gray-200 p-4 sm:p-6 transition-opacity duration-300 ${
+            showAISidebar ? 'lg:block hidden' : 'block'
+          }`}>
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Basic Information</h2>
             
             <div className="space-y-4">
@@ -224,8 +325,10 @@ export default function WorkflowCreate() {
             </div>
           </div>
 
-          {/* Workflow Definition Card */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
+          {/* Workflow Definition Card - Hidden on mobile when AI sidebar is open (Requirement 11.3) */}
+          <div className={`bg-white rounded-xl border border-gray-200 p-6 transition-opacity duration-300 ${
+            showAISidebar ? 'lg:block hidden' : 'block'
+          }`}>
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h2 className="text-lg font-semibold text-gray-900">Workflow Definition</h2>
@@ -242,6 +345,7 @@ export default function WorkflowCreate() {
             </div>
 
             <WorkflowVisualEditor
+              ref={workflowEditorRef}
               value={workflowJson}
               onChange={setWorkflowJson}
               onValidate={handleValidate}
@@ -271,30 +375,33 @@ export default function WorkflowCreate() {
             </div>
           </div>
 
-          {/* Actions */}
-          <div className="flex items-center justify-end gap-4">
+          {/* Actions - Hidden on mobile when AI sidebar is open (Requirement 11.3) */}
+          <div className={`flex items-center justify-end gap-3 sm:gap-4 transition-opacity duration-300 ${
+            showAISidebar ? 'lg:flex hidden' : 'flex'
+          }`}>
             <button
               type="button"
               onClick={handleCancel}
               disabled={createMutation.isPending}
-              className="px-6 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="px-4 sm:px-6 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={createMutation.isPending || !isValid || !name.trim()}
-              className="flex items-center gap-2 px-6 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="flex items-center gap-2 px-4 sm:px-6 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {createMutation.isPending ? (
                 <>
                   <LoadingSpinner size="sm" className="text-white" />
-                  Creating...
+                  <span className="hidden sm:inline">Creating...</span>
                 </>
               ) : (
                 <>
-                  <Save className="w-5 h-5" />
-                  Create Workflow
+                  <Save className="w-4 h-4 sm:w-5 sm:h-5" />
+                  <span className="hidden sm:inline">Create Workflow</span>
+                  <span className="sm:hidden">Create</span>
                 </>
               )}
             </button>
@@ -309,6 +416,25 @@ export default function WorkflowCreate() {
           onClose={() => setShowTemplateGallery(false)}
         />
       )}
+
+      {/* AI Generate Sidebar */}
+      <AIGenerateSidebar
+        isOpen={showAISidebar}
+        onClose={() => setShowAISidebar(false)}
+        currentWorkflowJson={workflowJson}
+        lastAIGeneratedJson={lastAIGeneratedJson}
+        onWorkflowUpdate={handleWorkflowUpdate}
+        agentNames={agentNames}
+      />
+
+      {/* Workflow Comparison Modal */}
+      <WorkflowComparison
+        isOpen={showComparison}
+        onClose={() => setShowComparison(false)}
+        beforeJson={comparisonBeforeJson}
+        afterJson={comparisonAfterJson}
+        title="Workflow Changes Comparison"
+      />
 
       {/* Onboarding Tutorial */}
       <OnboardingTutorial

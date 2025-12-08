@@ -1,7 +1,7 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef, useImperativeHandle, forwardRef } from 'react';
 import { FileJson, Network, AlertCircle } from 'lucide-react';
 import * as Tabs from '@radix-ui/react-tabs';
-import JSONEditor from '@/components/common/JSONEditor';
+import JSONEditor, { type JSONEditorRef } from '@/components/common/JSONEditor';
 import WorkflowGraph from './WorkflowGraph';
 import { cn } from '@/lib/utils';
 import type { WorkflowDefinition } from '@/types';
@@ -15,18 +15,30 @@ interface WorkflowVisualEditorProps {
   height?: string;
 }
 
-export default function WorkflowVisualEditor({
+export interface WorkflowVisualEditorRef {
+  highlightLines: (lineNumbers: number[], duration?: number) => void;
+}
+
+const WorkflowVisualEditor = forwardRef<WorkflowVisualEditorRef, WorkflowVisualEditorProps>(({
   value,
   onChange,
   onValidate,
   agentNames,
   readOnly = false,
   height = '600px',
-}: WorkflowVisualEditorProps) {
+}, ref) => {
   const [activeTab, setActiveTab] = useState<'json' | 'visual' | 'split'>('split');
   const [isValid, setIsValid] = useState(true);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [selectedStepId, setSelectedStepId] = useState<string | undefined>();
+  const jsonEditorRef = useRef<JSONEditorRef>(null);
+
+  // Expose methods to parent components
+  useImperativeHandle(ref, () => ({
+    highlightLines: (lineNumbers: number[], duration?: number) => {
+      jsonEditorRef.current?.highlightLines(lineNumbers, duration);
+    },
+  }));
 
   // Parse workflow from JSON
   const workflowDefinition = useMemo<WorkflowDefinition | null>(() => {
@@ -138,6 +150,7 @@ export default function WorkflowVisualEditor({
           >
             <div className="w-full h-full">
               <JSONEditor
+                ref={jsonEditorRef}
                 value={value}
                 onChange={onChange}
                 onValidate={handleValidate}
@@ -154,12 +167,13 @@ export default function WorkflowVisualEditor({
             className="absolute inset-0 data-[state=inactive]:hidden bg-gray-50"
           >
             {workflowDefinition && isValid ? (
-              <div className="w-full h-full">
+              <div className="w-full h-full animate-in fade-in duration-300">
                 <WorkflowGraph
                   workflow={workflowDefinition}
                   onStepClick={handleStepClick}
                   selectedStepId={selectedStepId}
                   className="h-full"
+                  key={value} // Force re-render with animation when workflow changes
                 />
               </div>
             ) : (
@@ -203,6 +217,7 @@ export default function WorkflowVisualEditor({
               {/* JSON Editor - Left Side */}
               <div className="w-1/2 border-r border-gray-200 h-full">
                 <JSONEditor
+                  ref={jsonEditorRef}
                   value={value}
                   onChange={onChange}
                   onValidate={handleValidate}
@@ -215,12 +230,15 @@ export default function WorkflowVisualEditor({
               {/* Visual Graph - Right Side */}
               <div className="w-1/2 bg-gray-50 h-full">
                 {workflowDefinition && isValid ? (
-                  <WorkflowGraph
-                    workflow={workflowDefinition}
-                    onStepClick={handleStepClick}
-                    selectedStepId={selectedStepId}
-                    className="h-full"
-                  />
+                  <div className="h-full animate-in fade-in duration-300">
+                    <WorkflowGraph
+                      workflow={workflowDefinition}
+                      onStepClick={handleStepClick}
+                      selectedStepId={selectedStepId}
+                      className="h-full"
+                      key={value} // Force re-render with animation when workflow changes
+                    />
+                  </div>
                 ) : (
                   <div className="h-full flex items-center justify-center p-8">
                     <div className="text-center max-w-sm">
@@ -240,4 +258,8 @@ export default function WorkflowVisualEditor({
       </Tabs.Root>
     </div>
   );
-}
+});
+
+WorkflowVisualEditor.displayName = 'WorkflowVisualEditor';
+
+export default WorkflowVisualEditor;
