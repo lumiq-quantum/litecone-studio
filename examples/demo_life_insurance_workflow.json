@@ -1,0 +1,300 @@
+{
+  "name": "complete-life-insurance-application-processing",
+  "description": "End-to-end life insurance application processing workflow demonstrating sequential, parallel, and conditional execution patterns with comprehensive underwriting, medical review, financial analysis, and claims management",
+  "version": "1.0",
+  "start_step": "intake_application",
+  "steps": {
+    "intake_application": {
+      "id": "intake_application",
+      "type": "agent",
+      "agent_name": "Intake & Submissions Agent",
+      "input_mapping": {
+        "application_data": "${workflow.input.application}",
+        "documents": "${workflow.input.documents}"
+      },
+      "next_step": "validate_documents"
+    },
+    "validate_documents": {
+      "id": "validate_documents",
+      "type": "agent",
+      "agent_name": "Cross Validator Agent",
+      "input_mapping": {
+        "documents": "${steps.intake_application.output.processed_documents}",
+        "application_data": "${steps.intake_application.output.application_data}"
+      },
+      "next_step": "check_completeness"
+    },
+    "check_completeness": {
+      "id": "check_completeness",
+      "type": "conditional",
+      "condition": {
+        "expression": "${steps.validate_documents.output.validation_status} == 'complete'"
+      },
+      "if_true_step": "parallel_initial_assessment",
+      "if_false_step": "request_missing_documents",
+      "next_step": null
+    },
+    "request_missing_documents": {
+      "id": "request_missing_documents",
+      "type": "agent",
+      "agent_name": "Communication Agent",
+      "input_mapping": {
+        "recipient": "${steps.intake_application.output.applicant_email}",
+        "message_type": "missing_documents_request",
+        "missing_items": "${steps.validate_documents.output.missing_documents}"
+      },
+      "next_step": null
+    },
+    "parallel_initial_assessment": {
+      "id": "parallel_initial_assessment",
+      "type": "parallel",
+      "parallel_steps": [
+        "medical_summary_extraction",
+        "financial_assessment",
+        "credit_risk_analysis"
+      ],
+      "max_parallelism": 3,
+      "next_step": "consolidate_assessments"
+    },
+    "medical_summary_extraction": {
+      "id": "medical_summary_extraction",
+      "type": "agent",
+      "agent_name": "Medical Agent",
+      "input_mapping": {
+        "medical_records": "${steps.intake_application.output.medical_documents}",
+        "applicant_info": "${steps.intake_application.output.applicant_info}"
+      },
+      "next_step": "parallel_initial_assessment"
+    },
+    "financial_assessment": {
+      "id": "financial_assessment",
+      "type": "agent",
+      "agent_name": "Financial Agent",
+      "input_mapping": {
+        "financial_documents": "${steps.intake_application.output.financial_documents}",
+        "requested_coverage": "${steps.intake_application.output.coverage_amount}"
+      },
+      "next_step": "parallel_initial_assessment"
+    },
+    "credit_risk_analysis": {
+      "id": "credit_risk_analysis",
+      "type": "agent",
+      "agent_name": "Credit Arbiter Agent",
+      "input_mapping": {
+        "applicant_info": "${steps.intake_application.output.applicant_info}",
+        "credit_history": "${steps.intake_application.output.credit_data}"
+      },
+      "next_step": "parallel_initial_assessment"
+    },
+    "consolidate_assessments": {
+      "id": "consolidate_assessments",
+      "type": "agent",
+      "agent_name": "Industry & Market Agent",
+      "input_mapping": {
+        "medical_summary": "${steps.medical_summary_extraction.output.health_summary}",
+        "financial_assessment": "${steps.financial_assessment.output.financial_standing}",
+        "credit_analysis": "${steps.credit_risk_analysis.output.credit_score}"
+      },
+      "next_step": "underwriting_decision"
+    },
+    "underwriting_decision": {
+      "id": "underwriting_decision",
+      "type": "agent",
+      "agent_name": "Underwriting Arbiter Agent",
+      "input_mapping": {
+        "consolidated_data": "${steps.consolidate_assessments.output.consolidated_report}",
+        "application_details": "${steps.intake_application.output.application_data}"
+      },
+      "next_step": "evaluate_risk_classification"
+    },
+    "evaluate_risk_classification": {
+      "id": "evaluate_risk_classification",
+      "type": "conditional",
+      "condition": {
+        "expression": "${steps.underwriting_decision.output.risk_classification} == 'standard' or ${steps.underwriting_decision.output.risk_classification} == 'preferred'"
+      },
+      "if_true_step": "calculate_premium",
+      "if_false_step": "check_if_declined",
+      "next_step": null
+    },
+    "check_if_declined": {
+      "id": "check_if_declined",
+      "type": "conditional",
+      "condition": {
+        "expression": "${steps.underwriting_decision.output.risk_classification} == 'declined'"
+      },
+      "if_true_step": "send_decline_notification",
+      "if_false_step": "request_additional_medical_review",
+      "next_step": null
+    },
+    "request_additional_medical_review": {
+      "id": "request_additional_medical_review",
+      "type": "agent",
+      "agent_name": "3rd Party Interaction Agent",
+      "input_mapping": {
+        "service_type": "medical_examination",
+        "applicant_info": "${steps.intake_application.output.applicant_info}",
+        "required_tests": "${steps.underwriting_decision.output.required_additional_tests}"
+      },
+      "next_step": "wait_for_medical_results"
+    },
+    "wait_for_medical_results": {
+      "id": "wait_for_medical_results",
+      "type": "agent",
+      "agent_name": "Medical Agent",
+      "input_mapping": {
+        "additional_results": "${steps.request_additional_medical_review.output.test_results}",
+        "previous_summary": "${steps.medical_summary_extraction.output.health_summary}"
+      },
+      "next_step": "re_evaluate_underwriting"
+    },
+    "re_evaluate_underwriting": {
+      "id": "re_evaluate_underwriting",
+      "type": "agent",
+      "agent_name": "Underwriting Arbiter Agent",
+      "input_mapping": {
+        "updated_medical_data": "${steps.wait_for_medical_results.output.updated_health_summary}",
+        "previous_decision": "${steps.underwriting_decision.output}",
+        "application_details": "${steps.intake_application.output.application_data}"
+      },
+      "next_step": "final_decision_check"
+    },
+    "final_decision_check": {
+      "id": "final_decision_check",
+      "type": "conditional",
+      "condition": {
+        "expression": "${steps.re_evaluate_underwriting.output.risk_classification} != 'declined'"
+      },
+      "if_true_step": "calculate_premium",
+      "if_false_step": "send_decline_notification",
+      "next_step": null
+    },
+    "calculate_premium": {
+      "id": "calculate_premium",
+      "type": "agent",
+      "agent_name": "ERIC",
+      "input_mapping": {
+        "risk_classification": "${steps.underwriting_decision.output.risk_classification}",
+        "coverage_amount": "${steps.intake_application.output.coverage_amount}",
+        "applicant_age": "${steps.intake_application.output.applicant_info.age}",
+        "health_factors": "${steps.medical_summary_extraction.output.risk_factors}"
+      },
+      "next_step": "generate_policy_documents"
+    },
+    "generate_policy_documents": {
+      "id": "generate_policy_documents",
+      "type": "parallel",
+      "parallel_steps": [
+        "create_main_policy",
+        "create_riders_document",
+        "create_disclosure_document"
+      ],
+      "max_parallelism": 3,
+      "next_step": "consolidate_documents"
+    },
+    "create_main_policy": {
+      "id": "create_main_policy",
+      "type": "agent",
+      "agent_name": "LEO",
+      "input_mapping": {
+        "document_type": "main_policy",
+        "policy_details": "${steps.calculate_premium.output.policy_details}",
+        "applicant_info": "${steps.intake_application.output.applicant_info}"
+      },
+      "next_step": "generate_policy_documents"
+    },
+    "create_riders_document": {
+      "id": "create_riders_document",
+      "type": "agent",
+      "agent_name": "LEO",
+      "input_mapping": {
+        "document_type": "riders_and_benefits",
+        "policy_details": "${steps.calculate_premium.output.policy_details}",
+        "applicant_info": "${steps.intake_application.output.applicant_info}"
+      },
+      "next_step": "generate_policy_documents"
+    },
+    "create_disclosure_document": {
+      "id": "create_disclosure_document",
+      "type": "agent",
+      "agent_name": "LEO",
+      "input_mapping": {
+        "document_type": "disclosures_and_terms",
+        "policy_details": "${steps.calculate_premium.output.policy_details}",
+        "applicant_info": "${steps.intake_application.output.applicant_info}"
+      },
+      "next_step": "generate_policy_documents"
+    },
+    "consolidate_documents": {
+      "id": "consolidate_documents",
+      "type": "agent",
+      "agent_name": "Cross Validator Agent",
+      "input_mapping": {
+        "main_policy": "${steps.create_main_policy.output.document}",
+        "riders": "${steps.create_riders_document.output.document}",
+        "disclosures": "${steps.create_disclosure_document.output.document}"
+      },
+      "next_step": "send_approval_notification"
+    },
+    "send_approval_notification": {
+      "id": "send_approval_notification",
+      "type": "agent",
+      "agent_name": "Communication Agent",
+      "input_mapping": {
+        "recipient": "${steps.intake_application.output.applicant_email}",
+        "message_type": "policy_approval",
+        "policy_details": "${steps.calculate_premium.output.policy_details}",
+        "premium_amount": "${steps.calculate_premium.output.monthly_premium}",
+        "documents": "${steps.consolidate_documents.output.complete_document_package}"
+      },
+      "next_step": "setup_billing"
+    },
+    "send_decline_notification": {
+      "id": "send_decline_notification",
+      "type": "agent",
+      "agent_name": "Communication Agent",
+      "input_mapping": {
+        "recipient": "${steps.intake_application.output.applicant_email}",
+        "message_type": "application_declined",
+        "decline_reasons": "${steps.underwriting_decision.output.decline_reasons}"
+      },
+      "next_step": null
+    },
+    "setup_billing": {
+      "id": "setup_billing",
+      "type": "agent",
+      "agent_name": "Medical Billing Auditing Agent",
+      "input_mapping": {
+        "policy_number": "${steps.consolidate_documents.output.policy_number}",
+        "premium_amount": "${steps.calculate_premium.output.monthly_premium}",
+        "billing_frequency": "${steps.intake_application.output.billing_preference}",
+        "payment_method": "${steps.intake_application.output.payment_info}"
+      },
+      "next_step": "activate_policy"
+    },
+    "activate_policy": {
+      "id": "activate_policy",
+      "type": "agent",
+      "agent_name": "ARIS",
+      "input_mapping": {
+        "policy_number": "${steps.consolidate_documents.output.policy_number}",
+        "policy_details": "${steps.calculate_premium.output.policy_details}",
+        "effective_date": "${workflow.input.requested_start_date}"
+      },
+      "next_step": "send_welcome_package"
+    },
+    "send_welcome_package": {
+      "id": "send_welcome_package",
+      "type": "agent",
+      "agent_name": "Communication Agent",
+      "input_mapping": {
+        "recipient": "${steps.intake_application.output.applicant_email}",
+        "message_type": "welcome_package",
+        "policy_number": "${steps.consolidate_documents.output.policy_number}",
+        "policy_documents": "${steps.consolidate_documents.output.complete_document_package}",
+        "billing_info": "${steps.setup_billing.output.billing_schedule}"
+      },
+      "next_step": null
+    }
+  }
+}

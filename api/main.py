@@ -6,8 +6,12 @@ from fastapi.responses import JSONResponse
 import logging
 
 from api.config import settings
-from api.routes import agents, workflows, runs, system
-from api.middleware import register_exception_handlers, register_logging_middleware
+from api.routes import agents, workflows, runs, system, ai_workflows
+from api.middleware import (
+    register_exception_handlers,
+    register_logging_middleware,
+    register_rate_limit_middleware
+)
 
 # Configure logging
 logging.basicConfig(
@@ -86,6 +90,13 @@ app = FastAPI(
             "description": "System health checks and monitoring endpoints. Includes liveness "
                           "probes, readiness checks with dependency validation, and Prometheus "
                           "metrics for observability."
+        },
+        {
+            "name": "AI Workflows",
+            "description": "AI-powered workflow generation from natural language descriptions. "
+                          "Generate workflows from text or documents, refine them through chat "
+                          "sessions, and save them to the system. Supports interactive workflow "
+                          "refinement and document upload for detailed specifications."
         }
     ],
     contact={
@@ -132,6 +143,10 @@ register_exception_handlers(app)
 # Register logging middleware (should be registered before other middleware)
 register_logging_middleware(app)
 
+# Register rate limiting middleware for AI workflow endpoints
+# Note: Queueing is disabled by default for simplicity
+register_rate_limit_middleware(app, enable_queueing=False)
+
 # Configure CORS
 cors_origins = settings.get_cors_origins_list() if settings.cors_origins != "*" else ["*"]
 app.add_middleware(
@@ -146,6 +161,7 @@ app.add_middleware(
 app.include_router(agents.router, prefix=settings.api_prefix)
 app.include_router(workflows.router, prefix=settings.api_prefix)
 app.include_router(runs.router, prefix=settings.api_prefix)
+app.include_router(ai_workflows.router, prefix=settings.api_prefix)
 app.include_router(system.router)  # System routes (health, metrics) at root level
 
 # Root endpoint
@@ -203,6 +219,7 @@ async def root():
             "agents": f"{settings.api_prefix}/agents",
             "workflows": f"{settings.api_prefix}/workflows",
             "runs": f"{settings.api_prefix}/runs",
+            "ai_workflows": f"{settings.api_prefix}/ai-workflows",
             "health": "/health",
             "health_ready": "/health/ready",
             "metrics": "/metrics"
@@ -216,6 +233,16 @@ async def startup_event():
     """Run on application startup."""
     logger.info(f"Starting {settings.api_title} v{settings.api_version}")
     logger.info(f"API documentation available at /docs")
+    
+    # Initialize AI Workflow Generator service
+    try:
+        from api.services.ai_workflow_generator.startup import initialize_service
+        initialize_service()
+        logger.info("AI Workflow Generator service initialized successfully")
+    except Exception as e:
+        logger.error(f"Failed to initialize AI Workflow Generator: {e}")
+        logger.warning("AI Workflow Generator endpoints may not function correctly")
+    
     # TODO: Initialize database connection
     # TODO: Initialize Kafka producer
 

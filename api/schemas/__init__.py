@@ -33,6 +33,27 @@ from api.schemas.common import (
     ReadinessResponse,
     MessageResponse,
 )
+from api.schemas.ai_workflow import (
+    WorkflowGenerationRequest,
+    WorkflowGenerationResponse,
+    DocumentUploadRequest,
+    ChatSessionCreateRequest,
+    ChatSessionResponse,
+    ChatMessageRequest,
+    ChatMessageResponse,
+    WorkflowSaveRequest,
+    WorkflowSaveResponse,
+    ValidationErrorDetail,
+)
+from api.schemas.validation import (
+    ValidationConfig,
+    ValidationResult,
+    RequestValidator,
+    validate_description,
+    validate_workflow_name,
+    validate_file_upload,
+    validate_chat_message,
+)
 
 __all__ = [
     "AgentCreate",
@@ -59,4 +80,23 @@ __all__ = [
     "HealthResponse",
     "ReadinessResponse",
     "MessageResponse",
+    # AI Workflow schemas
+    "WorkflowGenerationRequest",
+    "WorkflowGenerationResponse",
+    "DocumentUploadRequest",
+    "ChatSessionCreateRequest",
+    "ChatSessionResponse",
+    "ChatMessageRequest",
+    "ChatMessageResponse",
+    "WorkflowSaveRequest",
+    "WorkflowSaveResponse",
+    "ValidationErrorDetail",
+    # Validation utilities
+    "ValidationConfig",
+    "ValidationResult",
+    "RequestValidator",
+    "validate_description",
+    "validate_workflow_name",
+    "validate_file_upload",
+    "validate_chat_message",
 ]
