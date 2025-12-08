@@ -6,13 +6,21 @@ FROM python:3.11-alpine
 WORKDIR /app
 
 # Install system dependencies
-RUN apk add --no-cache \
+# Fix for ARM64 busybox trigger issue
+RUN apk add --no-cache --no-scripts \
     postgresql-client \
     curl \
     gcc \
     musl-dev \
     postgresql-dev \
-    linux-headers
+    linux-headers || \
+    (apk fix && apk add --no-cache \
+    postgresql-client \
+    curl \
+    gcc \
+    musl-dev \
+    postgresql-dev \
+    linux-headers)
 
 # Create non-root user for security
 RUN adduser -D -u 1000 apiuser && \
