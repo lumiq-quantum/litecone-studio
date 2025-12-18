@@ -132,7 +132,7 @@ services:
       - DATABASE_POOL_SIZE=20
       - DATABASE_MAX_OVERFLOW=40
     env_file:
-      - .env
+      - .env.api
     networks:
       - orchestrator-network
     restart: unless-stopped
@@ -210,37 +210,37 @@ services:
           cpus: '0.5'
           memory: 512M
 
-  # workflow-ui:
-  #   build:
-  #     context: ./workflow-ui
-  #     dockerfile: Dockerfile
-  #   container_name: workflow-ui
-  #   depends_on:
-  #     api:
-  #       condition: service_healthy
-  #   ports:
-  #     - "3000:80"
-  #   environment:
-  #     - VITE_API_URL=${VITE_API_URL:-http://localhost:8000/api/v1}
-  #     - VITE_POLLING_INTERVAL=${VITE_POLLING_INTERVAL:-2000}
-  #     - VITE_APP_NAME=${VITE_APP_NAME:-LiteCone Studio}
-  #   networks:
-  #     - orchestrator-network
-  #   restart: unless-stopped
-  #   deploy:
-  #     resources:
-  #       limits:
-  #         cpus: '1'
-  #         memory: 512M
-  #       reservations:
-  #         cpus: '0.25'
-  #         memory: 128M
-  #   healthcheck:
-  #     test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
-  #     interval: 30s
-  #     timeout: 3s
-  #     retries: 3
-  #     start_period: 5s
+  workflow-ui:
+    build:
+      context: ./workflow-ui
+      dockerfile: Dockerfile
+    container_name: workflow-ui
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "3000:80"
+    environment:
+      - VITE_API_URL=${VITE_API_URL:-http://localhost:8000/api/v1}
+      - VITE_POLLING_INTERVAL=${VITE_POLLING_INTERVAL:-2000}
+      - VITE_APP_NAME=${VITE_APP_NAME:-LiteCone Studio}
+    networks:
+      - orchestrator-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
 
 volumes:
   postgres-data:
