@@ -494,17 +494,22 @@ class ExternalAgentExecutor:
         """
         Extract output from JSON-RPC result.
         
-        Extracts text from artifacts and history to create output.
+        Extracts text from artifacts and history to create output, while preserving
+        the full result structure for downstream processing.
         
         Args:
             result: JSON-RPC result object
             
         Returns:
-            Extracted output dictionary
+            Extracted output dictionary with both structured and text data
         """
         output = {}
         
-        # Extract from artifacts
+        # Always include the full result for complete data access
+        # This ensures that agents returning structured data don't lose information
+        output.update(result)
+        
+        # Extract from artifacts for backward compatibility
         artifacts = result.get('artifacts', [])
         if artifacts:
             artifact_texts = []
@@ -516,9 +521,10 @@ class ExternalAgentExecutor:
             
             if artifact_texts:
                 output['text'] = '\n'.join(artifact_texts)
+                # Keep artifacts as they may contain structured data
                 output['artifacts'] = artifacts
         
-        # Extract from history (last agent message)
+        # Extract from history (last agent message) for backward compatibility
         history = result.get('history', [])
         for item in reversed(history):
             if item.get('role') == 'agent':
@@ -530,25 +536,17 @@ class ExternalAgentExecutor:
                 if 'response' in output:
                     break
         
-        # Include metadata if present
+        # Ensure metadata is preserved
         if 'metadata' in result:
             output['metadata'] = result['metadata']
         
-        # Include context ID for potential future use
+        # Ensure context ID is preserved
         if 'contextId' in result:
             output['context_id'] = result['contextId']
         
-        # Include task ID if present
+        # Ensure task ID is preserved
         if 'id' in result:
             output['task_id'] = result['id']
-        
-        # If no output extracted, return full result
-        if not output:
-            logger.warning(
-                "No output extracted from JSON-RPC result, returning full result",
-                extra={'result': result}
-            )
-            output = result
         
         return output
     

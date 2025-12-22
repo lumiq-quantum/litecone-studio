@@ -1,0 +1,27 @@
+{
+  "workflow_id": "wf-pdf-processing-001",
+  "name": "pdf-processing-workflow",
+  "version": "1.0.0",
+  "start_step": "fetch_data",
+  "steps": {
+    "fetch_data": {
+      "id": "fetch_data",
+      "agent_name": "PDFExtractorAgent",
+      "next_step": "process_data",
+      "input_mapping": {
+        "pdf_url": "${workflow.input.pdf_url}",
+        "extraction_mode": "${workflow.input.extraction_mode}"
+      }
+    },
+    "process_data": {
+      "id": "process_data",
+      "agent_name": "PDFProcessorAgent",
+      "next_step": null,
+      "input_mapping": {
+        "data": "${fetch_data.output.data}",
+        "operation": "transform",
+        "metadata": "${fetch_data.output.metadata}"
+      }
+    }
+  }
+}

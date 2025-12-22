@@ -46,7 +46,7 @@ export default function Help() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8"
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8"
         >
           <a
             href="#workflow-structure"
@@ -68,6 +68,17 @@ export default function Help() {
               Step Configuration
             </h3>
             <p className="text-sm text-gray-600">Configure individual workflow steps</p>
+          </a>
+
+          <a
+            href="#available-fields"
+            className="p-4 bg-white rounded-xl border border-gray-200 hover:border-primary-300 hover:shadow-md transition-all group"
+          >
+            <Code className="w-6 h-6 text-blue-600 mb-2" />
+            <h3 className="font-semibold text-gray-900 mb-1 group-hover:text-blue-600 transition-colors">
+              Available Fields
+            </h3>
+            <p className="text-sm text-gray-600">Fields you can reference from agent outputs</p>
           </a>
 
           <a
@@ -146,6 +157,93 @@ export default function Help() {
             </div>
           </motion.section>
 
+          {/* Available Output Fields */}
+          <motion.section
+            id="available-fields"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.25 }}
+            className="bg-white rounded-xl border border-gray-200 p-6"
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <Code className="w-6 h-6 text-blue-600" />
+              <h2 className="text-2xl font-bold text-gray-900">Available Output Fields</h2>
+            </div>
+
+            <div className="space-y-4">
+              <p className="text-gray-700">
+                When an agent completes execution, these fields are automatically available for input mapping in subsequent steps:
+              </p>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-3">
+                  <h3 className="font-semibold text-gray-900 mb-2">Always Available Fields</h3>
+                  
+                  <div className="border border-green-200 rounded-lg p-3 bg-green-50">
+                    <code className="text-sm font-mono text-green-800">${`\${step_id.output.text}`}</code>
+                    <p className="text-xs text-green-700 mt-1">Main text response from the agent</p>
+                  </div>
+                  
+                  <div className="border border-green-200 rounded-lg p-3 bg-green-50">
+                    <code className="text-sm font-mono text-green-800">${`\${step_id.output.response}`}</code>
+                    <p className="text-xs text-green-700 mt-1">Agent's response message</p>
+                  </div>
+                  
+                  <div className="border border-green-200 rounded-lg p-3 bg-green-50">
+                    <code className="text-sm font-mono text-green-800">${`\${step_id.output.id}`}</code>
+                    <p className="text-xs text-green-700 mt-1">Task/response identifier</p>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <h3 className="font-semibold text-gray-900 mb-2">Structured Data Fields</h3>
+                  
+                  <div className="border border-blue-200 rounded-lg p-3 bg-blue-50">
+                    <code className="text-sm font-mono text-blue-800">${`\${step_id.output.artifacts}`}</code>
+                    <p className="text-xs text-blue-700 mt-1">Output artifacts from agent</p>
+                  </div>
+                  
+                  <div className="border border-blue-200 rounded-lg p-3 bg-blue-50">
+                    <code className="text-sm font-mono text-blue-800">${`\${step_id.output.metadata}`}</code>
+                    <p className="text-xs text-blue-700 mt-1">Agent-specific metadata</p>
+                  </div>
+                  
+                  <div className="border border-blue-200 rounded-lg p-3 bg-blue-50">
+                    <code className="text-sm font-mono text-blue-800">${`\${step_id.output.status}`}</code>
+                    <p className="text-xs text-blue-700 mt-1">Execution status information</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="font-semibold text-yellow-900 mb-1">Custom Agent Fields</h4>
+                    <p className="text-sm text-yellow-700 mb-2">
+                      Some agents may return additional custom fields. Use <code className="bg-yellow-100 px-1 rounded">text</code> or <code className="bg-yellow-100 px-1 rounded">response</code> if you're unsure what fields are available.
+                    </p>
+                    <p className="text-sm text-yellow-700">
+                      <strong>Tip:</strong> Check the run details page after executing a workflow to see all available fields from each step.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                <h4 className="font-semibold text-gray-900 mb-2">Example: Accessing Nested Fields</h4>
+                <pre className="text-xs bg-gray-900 text-gray-100 p-3 rounded overflow-x-auto">
+{`"input_mapping": {
+  "main_content": "\${extract_data.output.text}",
+  "completion_status": "\${extract_data.output.status.state}",
+  "processing_time": "\${extract_data.output.metadata.processing_time}",
+  "user_context": "\${workflow.input.user_id}"
+}`}
+                </pre>
+              </div>
+            </div>
+          </motion.section>
+
           {/* Step Configuration */}
           <motion.section
             id="step-configuration"
@@ -216,19 +314,22 @@ export default function Help() {
                     <span className="text-xs font-semibold text-red-600 uppercase">Required</span>
                   </div>
                   <p className="text-sm text-gray-700 mb-2">
-                    Object defining how to map data to the agent's input. Supports JSONPath expressions.
+                    Object defining how to map data to the agent's input. Uses variable references with ${} syntax.
                   </p>
                   <div className="mt-2 p-2 bg-gray-50 rounded text-xs font-mono text-gray-800">
 {`"input_mapping": {
-  "user_id": "$.input.user_id",
-  "data": "$.steps.fetch_data.output.result"
+  "user_id": "\${workflow.input.user_id}",
+  "data": "\${fetch_data.output.text}",
+  "metadata": "\${fetch_data.output.metadata}"
 }`}
                   </div>
                   <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded">
                     <p className="text-xs text-blue-700">
-                      <strong>JSONPath Reference:</strong>
-                      <br />• <code className="bg-blue-100 px-1 rounded">$.input.*</code> - Access workflow input
-                      <br />• <code className="bg-blue-100 px-1 rounded">$.steps.step_id.output.*</code> - Access previous step output
+                      <strong>Variable Reference Syntax:</strong>
+                      <br />• <code className="bg-blue-100 px-1 rounded">${`\${workflow.input.*}`}</code> - Access workflow input data
+                      <br />• <code className="bg-blue-100 px-1 rounded">${`\${step_id.output.*}`}</code> - Access previous step output
+                      <br />• <code className="bg-blue-100 px-1 rounded">${`\${step_id.output.text}`}</code> - Main text response (always available)
+                      <br />• <code className="bg-blue-100 px-1 rounded">${`\${step_id.output.response}`}</code> - Agent response message (always available)
                     </p>
                   </div>
                 </div>
@@ -262,7 +363,7 @@ export default function Help() {
       "agent_name": "user-service",
       "next_step": "enrich_data",
       "input_mapping": {
-        "user_id": "$.input.user_id"
+        "user_id": "\${workflow.input.user_id}"
       }
     },
     "enrich_data": {
@@ -270,8 +371,9 @@ export default function Help() {
       "agent_name": "data-enricher",
       "next_step": "send_notification",
       "input_mapping": {
-        "user": "$.steps.fetch_user.output.user",
-        "source": "$.input.data_source"
+        "user_data": "\${fetch_user.output.text}",
+        "user_metadata": "\${fetch_user.output.metadata}",
+        "source": "\${workflow.input.data_source}"
       }
     },
     "send_notification": {
@@ -279,8 +381,9 @@ export default function Help() {
       "agent_name": "notification-service",
       "next_step": null,
       "input_mapping": {
-        "recipient": "$.steps.fetch_user.output.user.email",
-        "message": "$.steps.enrich_data.output.message"
+        "recipient_info": "\${fetch_user.output.response}",
+        "enriched_message": "\${enrich_data.output.text}",
+        "notification_type": "\${workflow.input.notification_type}"
       }
     }
   }
